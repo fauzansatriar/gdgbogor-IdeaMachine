@@ -37,10 +37,6 @@ import { sfx } from './utils/audio';
 import { MissionBriefPayload, decodeBriefToken } from './utils/briefCodec';
 import { downloadAllSummaryPdf, downloadParticipantPdf } from './utils/pdfExport';
 import { useProjectorDisplay } from './hooks/useProjectorDisplay';
-import questionRedTransparent from './assets/images/question_red_transparent.png';
-import questionBlueTransparent from './assets/images/question_blue_transparent.png';
-import questionGreenTransparent from './assets/images/question_green_transparent.png';
-import questionAmberTransparent from './assets/images/question_amber_transparent.png';
 
 type AppPage = 'cover' | 'machine' | 'timer';
 
@@ -63,42 +59,66 @@ const REEL_THEMES: [ReelTheme, ReelTheme, ReelTheme, ReelTheme] = [
   {
     stepLabel: '01 · MASALAH',
     headerTitle: 'The Problem',
+    titleTop: 'The',
+    titleBottom: 'Problem',
+    chevronDirection: 'up',
+    primaryColor: '#EA4335',
+    midColor: '#EF5347',
+    chevronStart: '#EE1D0D',
+    chevronEnd: '#8E0200',
     gradientClass: 'from-[#EA4335] to-[#DC2626]',
     headerTextClass: 'text-white',
     accentColor: '#EA4335',
     softBgClass: 'bg-[#FEE2E2]',
     softTextClass: 'text-[#EA4335]',
-    mysteryImageSrc: questionRedTransparent,
   },
   {
     stepLabel: '02 · SOLUSI AI',
     headerTitle: 'The App',
-    gradientClass: 'from-[#34A853] to-[#06B6D4]',
+    titleTop: 'The',
+    titleBottom: 'App',
+    chevronDirection: 'down',
+    primaryColor: '#22A049',
+    midColor: '#2EAB56',
+    chevronStart: '#2CA64B',
+    chevronEnd: '#0E4B20',
+    gradientClass: 'from-[#34A853] to-[#1E8E3E]',
     headerTextClass: 'text-white',
     accentColor: '#34A853',
     softBgClass: 'bg-[#E6F4EA]',
     softTextClass: 'text-[#1E8E3E]',
-    mysteryImageSrc: questionGreenTransparent,
   },
   {
     stepLabel: '03 · PENGGUNA',
     headerTitle: 'The User',
+    titleTop: 'The',
+    titleBottom: 'User',
+    chevronDirection: 'right',
+    primaryColor: '#007BFF',
+    midColor: '#1E8EFF',
+    chevronStart: '#0051DB',
+    chevronEnd: '#008CFF',
     gradientClass: 'from-[#4285F4] to-[#1A73E8]',
     headerTextClass: 'text-white',
     accentColor: '#4285F4',
     softBgClass: 'bg-[#E8F0FE]',
     softTextClass: 'text-[#1A73E8]',
-    mysteryImageSrc: questionBlueTransparent,
   },
   {
     stepLabel: '04 · PERANGKAT',
     headerTitle: 'The Device',
+    titleTop: 'The',
+    titleBottom: 'Device',
+    chevronDirection: 'left',
+    primaryColor: '#F59E0B',
+    midColor: '#FBBF24',
+    chevronStart: '#F59E0B',
+    chevronEnd: '#92400E',
     gradientClass: 'from-[#FBBF24] to-[#F59E0B]',
-    headerTextClass: 'text-[#111827]',
+    headerTextClass: 'text-white',
     accentColor: '#D97706',
     softBgClass: 'bg-[#FEF3C7]',
     softTextClass: 'text-[#B45309]',
-    mysteryImageSrc: questionAmberTransparent,
   },
 ];
 
@@ -846,7 +866,7 @@ export default function App() {
         <header className="shrink-0 pt-3 pb-1 px-4 flex justify-center z-20">
           <nav
             aria-label="Navigasi Mode Fokus"
-            className="max-w-full bg-white/95 backdrop-blur-md border border-[#CBD5E1] shadow-[0_8px_28px_rgba(15,23,42,0.08)] rounded-full p-1.5 pl-4 inline-flex items-center gap-1.5 sm:gap-2"
+            className="max-w-full bg-white/95 backdrop-blur-md shadow-[0_10px_30px_rgba(15,23,42,0.08)] rounded-full p-1.5 pl-4 inline-flex items-center gap-1.5 sm:gap-2"
           >
             {/* Brand -> Back to Cover */}
             <button
@@ -1003,30 +1023,20 @@ export default function App() {
             {/* Centered Name Entry Card */}
             <form
               onSubmit={handleConfirmName}
-              className="w-full bg-white rounded-3xl border border-[#CBD5E1] p-6 sm:p-8 shadow-[0_12px_36px_rgba(15,23,42,0.06)] space-y-5"
+              className="w-full bg-white rounded-3xl p-6 sm:p-8 shadow-[0_16px_42px_rgba(15,23,42,0.08)] space-y-5"
             >
               <div className="flex items-center gap-3.5">
-                <div className="w-12 h-12 rounded-2xl bg-[#E8F0FE] text-[#1A73E8] flex items-center justify-center shrink-0">
-                  <User className="w-6 h-6" aria-hidden="true" />
+                <div className="w-11 h-11 rounded-2xl bg-[#E8F0FE] text-[#1A73E8] flex items-center justify-center shrink-0">
+                  <User className="w-5 h-5" aria-hidden="true" />
                 </div>
-                <div>
-                  <div className="text-xs font-bold uppercase tracking-wider text-[#1A73E8] tabular-nums">
-                    Antrean {activeTurn} dari 5
-                  </div>
-                  <h1 className="text-xl sm:text-2xl font-bold text-[#111827] leading-tight">
-                    Masukkan Nama Peserta #{activeTurn}
-                  </h1>
-                </div>
+                <h1 className="text-xl sm:text-2xl font-bold text-[#111827] leading-tight">
+                  Masukkan Nama Peserta
+                </h1>
               </div>
-
-              <p className="text-sm text-[#4B5563] leading-relaxed">
-                Tulis nama peserta yang maju ke panggung dulu sebelum memutar mesin ide
-                aplikasinya.
-              </p>
 
               <div className="space-y-3">
                 <label htmlFor="participant-name-input" className="sr-only">
-                  Nama Peserta #{activeTurn}
+                  Masukkan Nama Peserta
                 </label>
                 <input
                   id="participant-name-input"
@@ -1034,9 +1044,9 @@ export default function App() {
                   type="text"
                   value={participantNameInput}
                   onChange={(e) => setParticipantNameInput(e.target.value)}
-                  placeholder={`Ketik nama peserta #${activeTurn}...`}
+                  placeholder="Ketik nama peserta..."
                   maxLength={50}
-                  className="w-full min-h-[52px] px-4 py-3 rounded-2xl border-2 border-[#CBD5E1] bg-[#F8FAFC] focus:bg-white focus:border-[#1A73E8] focus:outline-none text-base sm:text-lg font-semibold text-[#111827] placeholder:font-normal placeholder:text-[#94A3B8] transition-colors"
+                  className="w-full min-h-[52px] px-4 py-3 rounded-2xl bg-[#F1F5F9] focus:bg-white focus:ring-2 focus:ring-[#1A73E8] focus:outline-none text-base sm:text-lg font-semibold text-[#111827] placeholder:font-normal placeholder:text-[#94A3B8] transition-all"
                 />
 
                 <button
@@ -1114,8 +1124,8 @@ export default function App() {
                           onClick={() => setActiveMobileReelIdx(idx)}
                           className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
                             activeMobileReelIdx === idx
-                              ? 'bg-[#111827] text-white'
-                              : 'bg-white/90 text-[#64748B] border border-[#E2E8F0]'
+                              ? 'bg-[#111827] text-white shadow-xs'
+                              : 'bg-white/90 text-[#64748B] shadow-[0_2px_8px_rgba(15,23,42,0.06)]'
                           }`}
                         >
                           0{idx + 1}
@@ -1203,7 +1213,7 @@ export default function App() {
                   type="button"
                   onClick={spinAll}
                   disabled={isAnySpinning}
-                  className={`rounded-xl border border-[#CBD5E1] bg-white hover:bg-[#F8FAFC] text-[#111827] font-bold inline-flex items-center justify-center gap-2 transition-colors whitespace-nowrap cursor-pointer disabled:opacity-45 ${
+                  className={`rounded-xl bg-white hover:bg-[#F1F5F9] text-[#111827] font-bold inline-flex items-center justify-center gap-2 transition-colors whitespace-nowrap cursor-pointer disabled:opacity-45 shadow-[0_6px_18px_rgba(15,23,42,0.08)] ${
                     isWideProjector ? 'min-h-[46px] px-7 py-2 text-base' : 'min-h-[42px] px-6 py-1.5 text-sm'
                   }`}
                 >
@@ -1284,16 +1294,16 @@ export default function App() {
       {/* Persistent Corner Hotkey Help Overlay */}
       <aside
         aria-label="Panduan Tombol Cepat Presentasi"
-        className="fixed bottom-3.5 right-4 z-30 hidden sm:flex items-center gap-3 px-3 py-1.5 rounded-xl bg-white/95 backdrop-blur-xs border border-[#CBD5E1] shadow-[0_6px_18px_rgba(15,23,42,0.08)] text-[11px] font-semibold text-[#475569] pointer-events-none select-none"
+        className="fixed bottom-3.5 right-4 z-30 hidden sm:flex items-center gap-3 px-3 py-1.5 rounded-xl bg-white/95 backdrop-blur-xs shadow-[0_8px_24px_rgba(15,23,42,0.08)] text-[11px] font-semibold text-[#475569] pointer-events-none select-none"
       >
         <div className="flex items-center gap-1.5">
-          <kbd className="px-1.5 py-0.5 rounded-md bg-[#F1F5F9] border border-[#CBD5E1] text-[10px] font-bold text-[#111827]">
+          <kbd className="px-1.5 py-0.5 rounded-md bg-[#F1F5F9] text-[10px] font-bold text-[#111827]">
             F
           </kbd>
           <span>{isNativeFullscreen ? 'Keluar Layar Penuh' : 'Layar Penuh'}</span>
         </div>
 
-        <span className="h-3 w-px bg-[#CBD5E1]" aria-hidden="true" />
+        <span className="h-3 w-px bg-[#E2E8F0]" aria-hidden="true" />
 
         <div
           className={`flex items-center gap-1.5 transition-opacity ${
@@ -1302,7 +1312,7 @@ export default function App() {
               : 'opacity-70'
           }`}
         >
-          <kbd className="px-1.5 py-0.5 rounded-md bg-[#F1F5F9] border border-[#CBD5E1] text-[10px] font-bold text-[#111827]">
+          <kbd className="px-1.5 py-0.5 rounded-md bg-[#F1F5F9] text-[10px] font-bold text-[#111827]">
             SPACE
           </kbd>
           <span>Putar Mesin</span>

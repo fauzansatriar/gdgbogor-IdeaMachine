@@ -38,10 +38,10 @@ export function FinalizedRecapModal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-4xl max-h-[88vh] bg-white rounded-3xl border border-[#E2E8F0] shadow-[0_20px_50px_rgba(32,33,36,0.18)] flex flex-col overflow-hidden"
+        className="w-full max-w-4xl max-h-[88vh] bg-white rounded-3xl shadow-[0_24px_60px_rgba(15,23,42,0.22)] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-6 py-4 border-b border-[#F1F3F4] flex items-center justify-between gap-4 shrink-0">
+        <div className="px-6 py-4 bg-[#F8FAFC]/80 flex items-center justify-between gap-4 shrink-0">
           <div>
             <div className="text-xs font-semibold text-[#1A73E8] uppercase tracking-wide">
               Finalisasi Hasil · {lockedSlots.length} Peserta Terkunci
@@ -89,7 +89,7 @@ export function FinalizedRecapModal({
               return (
                 <div
                   key={slot.number}
-                  className="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-4 flex flex-col md:flex-row md:items-center justify-between gap-4"
+                  className="rounded-2xl bg-[#F8FAFC] shadow-[0_2px_10px_rgba(15,23,42,0.04)] p-4 flex flex-col md:flex-row md:items-center justify-between gap-4"
                 >
                   <div className="min-w-0 flex-1 space-y-1.5">
                     <div className="flex flex-wrap items-center gap-2">
@@ -175,7 +175,7 @@ export function FinalizedRecapModal({
                           mission,
                         })
                       }
-                      className="min-h-[38px] px-3.5 py-1.5 rounded-xl border border-[#CBD5E1] bg-white hover:bg-[#F1F5F9] text-[#111827] text-xs font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                      className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-white hover:bg-[#F1F5F9] shadow-[0_2px_8px_rgba(15,23,42,0.06)] text-[#111827] text-xs font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
                     >
                       <Eye className="w-4 h-4 text-[#5F6368]" aria-hidden="true" />
                       <span>Kartu Misi</span>
@@ -184,7 +184,7 @@ export function FinalizedRecapModal({
                     <button
                       type="button"
                       onClick={() => onDownloadSinglePdf(slot)}
-                      className="min-h-[38px] px-3.5 py-1.5 rounded-xl border border-[#CBD5E1] bg-white hover:bg-[#F1F5F9] text-[#111827] text-xs font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                      className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-white hover:bg-[#F1F5F9] shadow-[0_2px_8px_rgba(15,23,42,0.06)] text-[#111827] text-xs font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
                     >
                       <Download className="w-4 h-4 text-[#5F6368]" aria-hidden="true" />
                       <span>PDF</span>
@@ -196,7 +196,7 @@ export function FinalizedRecapModal({
           )}
         </div>
 
-        <div className="px-6 py-3 bg-[#F8F9FA] border-t border-[#F1F3F4] flex items-center justify-between text-xs text-[#5F6368] shrink-0">
+        <div className="px-6 py-3 bg-[#F8F9FA] flex items-center justify-between text-xs text-[#5F6368] shrink-0">
           <span>Semua kartu misi & QR tetap bisa dibuka selama sesi berlangsung.</span>
           <span>Tekan ESC untuk menutup</span>
         </div>

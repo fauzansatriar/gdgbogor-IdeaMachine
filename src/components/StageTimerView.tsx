@@ -212,31 +212,31 @@ export function StageTimerView({ isWideProjector = false }: { isWideProjector?: 
       <div className="relative z-10 flex flex-col items-center justify-center w-full max-w-4xl">
         {/* Gradient Countdown Stage Card */}
         <div className="relative flex items-center justify-center">
-          {/* Expanding Pulse Ring During Final 10 Seconds */}
+          {/* Expanding Soft Glow Aura During Final 10 Seconds (Stroke-Free) */}
           <AnimatePresence>
             {isDramatic && (
               <motion.div
                 key={`pulse-${remainingSeconds}`}
-                initial={{ opacity: 0.55, scale: 0.96 }}
-                animate={{ opacity: 0, scale: 1.09 }}
+                initial={{ opacity: 0.45, scale: 0.96 }}
+                animate={{ opacity: 0, scale: 1.12 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.85, ease: [0.16, 1, 0.3, 1] }}
-                className="pointer-events-none absolute inset-0 rounded-[34px] border-2 border-[#EA4335]/60"
+                className="pointer-events-none absolute inset-0 rounded-[34px] bg-gradient-to-br from-[#EA4335]/28 via-[#F97316]/20 to-[#FBBF24]/20 blur-md"
                 aria-hidden="true"
               />
             )}
           </AnimatePresence>
 
-          {/* Outer Gradient Frame */}
+          {/* Outer Soft Gradient Halo Frame */}
           <div
             className={`relative rounded-[32px] p-[2px] transition-all duration-300 ${
               isWideProjector ? 'my-4' : 'my-3 sm:my-4'
             } ${
               isDramatic || isFinished
-                ? 'bg-gradient-to-br from-[#EF4444] via-[#F97316] to-[#FBBF24] shadow-[0_24px_64px_rgba(234,67,53,0.24)]'
+                ? 'bg-gradient-to-br from-[#EF4444]/60 via-[#F97316]/55 to-[#FBBF24]/55 shadow-[0_24px_64px_rgba(234,67,53,0.22)]'
                 : isRunning
-                  ? 'bg-gradient-to-br from-[#4285F4] via-[#06B6D4] to-[#34A853] shadow-[0_20px_54px_rgba(26,115,232,0.16)]'
-                  : 'bg-gradient-to-br from-[#93C5FD] via-[#E2E8F0] to-[#A7F3D0] shadow-[0_14px_38px_rgba(15,23,42,0.08)]'
+                  ? 'bg-gradient-to-br from-[#4285F4]/35 via-[#06B6D4]/25 to-[#34A853]/35 shadow-[0_20px_54px_rgba(26,115,232,0.14)]'
+                  : 'bg-gradient-to-br from-[#DBEAFE]/70 via-[#F8FAFC] to-[#DCFCE7]/70 shadow-[0_14px_40px_rgba(15,23,42,0.08)]'
             }`}
           >
             <div
@@ -302,7 +302,7 @@ export function StageTimerView({ isWideProjector = false }: { isWideProjector?: 
               </div>
 
               {/* Subtle Gradient Progress Bar Along Card Bottom */}
-              <div className="absolute inset-x-0 bottom-0 h-1.5 bg-[#E2E8F0]/70">
+              <div className="absolute inset-x-0 bottom-0 h-1.5 bg-[#E2E8F0]/55">
                 <div
                   style={{ width: `${progressRatio * 100}%` }}
                   className={`h-full transition-[width] duration-200 ${
@@ -316,15 +316,15 @@ export function StageTimerView({ isWideProjector = false }: { isWideProjector?: 
           </div>
         </div>
 
-        {/* Custom Duration Picker Only (No Title, No Presets) */}
-        <div className="mb-4 flex flex-wrap items-center justify-center gap-3 px-4 py-2.5 rounded-2xl bg-white/90 backdrop-blur-md border border-[#CBD5E1] shadow-[0_6px_20px_rgba(15,23,42,0.05)]">
+        {/* Stroke-Free Custom Duration Picker Only */}
+        <div className="mb-4 flex flex-wrap items-center justify-center gap-3 px-4 py-2.5 rounded-2xl bg-white/95 backdrop-blur-md shadow-[0_8px_24px_rgba(15,23,42,0.06)]">
           <div className="flex items-center gap-1.5">
             <button
               type="button"
               disabled={isRunning}
               onClick={() => applyCustomDuration(customMinutes - 1, customSeconds)}
               aria-label="Kurangi 1 menit"
-              className="w-8 h-8 rounded-lg border border-[#CBD5E1] bg-white hover:bg-[#F1F5F9] inline-flex items-center justify-center text-[#111827] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-8 h-8 rounded-lg bg-[#F1F5F9] hover:bg-[#E2E8F0] inline-flex items-center justify-center text-[#111827] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               <Minus className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
@@ -339,7 +339,7 @@ export function StageTimerView({ isWideProjector = false }: { isWideProjector?: 
                   applyCustomDuration(Number(e.target.value) || 0, customSeconds)
                 }
                 aria-label="Menit"
-                className="w-12 h-8 text-center rounded-lg border border-[#CBD5E1] bg-white text-sm font-bold tabular-nums text-[#111827] focus:outline-2 focus:outline-[#1A73E8] disabled:opacity-50"
+                className="w-12 h-8 text-center rounded-lg bg-[#F8FAFC] text-sm font-bold tabular-nums text-[#111827] focus:outline-2 focus:outline-[#1A73E8] disabled:opacity-50"
               />
               <span>mnt</span>
             </label>
@@ -348,7 +348,7 @@ export function StageTimerView({ isWideProjector = false }: { isWideProjector?: 
               disabled={isRunning}
               onClick={() => applyCustomDuration(customMinutes + 1, customSeconds)}
               aria-label="Tambah 1 menit"
-              className="w-8 h-8 rounded-lg border border-[#CBD5E1] bg-white hover:bg-[#F1F5F9] inline-flex items-center justify-center text-[#111827] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-8 h-8 rounded-lg bg-[#F1F5F9] hover:bg-[#E2E8F0] inline-flex items-center justify-center text-[#111827] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               <Plus className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
@@ -364,7 +364,7 @@ export function StageTimerView({ isWideProjector = false }: { isWideProjector?: 
               disabled={isRunning}
               onClick={() => applyCustomDuration(customMinutes, customSeconds - 5)}
               aria-label="Kurangi 5 detik"
-              className="w-8 h-8 rounded-lg border border-[#CBD5E1] bg-white hover:bg-[#F1F5F9] inline-flex items-center justify-center text-[#111827] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-8 h-8 rounded-lg bg-[#F1F5F9] hover:bg-[#E2E8F0] inline-flex items-center justify-center text-[#111827] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               <Minus className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
@@ -379,7 +379,7 @@ export function StageTimerView({ isWideProjector = false }: { isWideProjector?: 
                   applyCustomDuration(customMinutes, Number(e.target.value) || 0)
                 }
                 aria-label="Detik"
-                className="w-12 h-8 text-center rounded-lg border border-[#CBD5E1] bg-white text-sm font-bold tabular-nums text-[#111827] focus:outline-2 focus:outline-[#1A73E8] disabled:opacity-50"
+                className="w-12 h-8 text-center rounded-lg bg-[#F8FAFC] text-sm font-bold tabular-nums text-[#111827] focus:outline-2 focus:outline-[#1A73E8] disabled:opacity-50"
               />
               <span>dtk</span>
             </label>
@@ -388,7 +388,7 @@ export function StageTimerView({ isWideProjector = false }: { isWideProjector?: 
               disabled={isRunning}
               onClick={() => applyCustomDuration(customMinutes, customSeconds + 5)}
               aria-label="Tambah 5 detik"
-              className="w-8 h-8 rounded-lg border border-[#CBD5E1] bg-white hover:bg-[#F1F5F9] inline-flex items-center justify-center text-[#111827] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-8 h-8 rounded-lg bg-[#F1F5F9] hover:bg-[#E2E8F0] inline-flex items-center justify-center text-[#111827] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               <Plus className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
@@ -422,7 +422,7 @@ export function StageTimerView({ isWideProjector = false }: { isWideProjector?: 
           <button
             type="button"
             onClick={handleReset}
-            className="min-h-[48px] px-6 py-3 rounded-2xl border border-[#CBD5E1] bg-white/95 hover:bg-[#F8FAFC] text-[#111827] text-base font-bold inline-flex items-center gap-2 transition-colors whitespace-nowrap cursor-pointer"
+            className="min-h-[48px] px-6 py-3 rounded-2xl bg-white/95 hover:bg-[#F1F5F9] text-[#111827] text-base font-bold inline-flex items-center gap-2 transition-colors whitespace-nowrap cursor-pointer shadow-[0_6px_18px_rgba(15,23,42,0.07)]"
           >
             <RotateCcw className="w-4 h-4" aria-hidden="true" />
             <span>Reset</span>

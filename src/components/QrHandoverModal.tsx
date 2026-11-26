@@ -41,10 +41,10 @@ export function QrHandoverModal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-2xl bg-white rounded-3xl border border-[#E2E8F0] shadow-[0_20px_50px_rgba(32,33,36,0.18)] overflow-hidden"
+        className="w-full max-w-2xl bg-white rounded-3xl shadow-[0_24px_60px_rgba(15,23,42,0.22)] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-6 py-4 border-b border-[#F1F3F4] flex items-center justify-between gap-4">
+        <div className="px-6 py-4 bg-[#F8FAFC]/80 flex items-center justify-between gap-4">
           <div>
             <div className="text-xs font-semibold text-[#1A73E8] uppercase tracking-wide">
               QR Handover · Kartu Misi
@@ -70,7 +70,7 @@ export function QrHandoverModal({
 
         <div className="p-6 grid grid-cols-1 md:grid-cols-[240px_1fr] gap-6 items-center">
           <div className="flex flex-col items-center">
-            <div className="p-3 bg-white rounded-2xl border border-[#E2E8F0]">
+            <div className="p-3 bg-white rounded-2xl shadow-[0_6px_22px_rgba(15,23,42,0.08)]">
               <QrCodeSvg
                 url={briefUrl}
                 label={`QR Code Kartu Misi Peserta #${slot.number}`}
@@ -80,7 +80,7 @@ export function QrHandoverModal({
           </div>
 
           <div className="space-y-3 text-sm">
-            <div className="p-3.5 rounded-2xl bg-[#F8F9FA] border border-[#E2E8F0] space-y-2.5">
+            <div className="p-3.5 rounded-2xl bg-[#F8F9FA] space-y-2.5">
               <div>
                 <div className="text-[11px] font-semibold text-[#1E8E3E]">
                   THE APP · APLIKASI YANG HARUS DIBUAT
@@ -156,7 +156,7 @@ export function QrHandoverModal({
               <button
                 type="button"
                 onClick={() => onDownloadPdf(slot)}
-                className="min-h-[40px] px-4 py-2 rounded-xl border border-[#E2E8F0] bg-white hover:bg-[#F8F9FA] text-[#202124] text-xs font-semibold inline-flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                className="min-h-[40px] px-4 py-2 rounded-xl bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#202124] text-xs font-semibold inline-flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
               >
                 <Download className="w-4 h-4" aria-hidden="true" />
                 <span>Download PDF</span>
@@ -175,7 +175,7 @@ export function QrHandoverModal({
           </div>
         </div>
 
-        <div className="px-6 py-3.5 bg-[#F8F9FA] border-t border-[#F1F3F4] flex flex-wrap items-center justify-between gap-3 text-xs text-[#5F6368]">
+        <div className="px-6 py-3.5 bg-[#F8F9FA] flex flex-wrap items-center justify-between gap-3 text-xs text-[#5F6368]">
           <span>Scan QR dari HP untuk melihat ide aplikasi yang harus dibuat.</span>
           {primaryActionLabel && onPrimaryAction ? (
             <button

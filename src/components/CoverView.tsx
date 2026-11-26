@@ -81,7 +81,7 @@ export function CoverView({ onStartMachine, isWideProjector = false }: CoverView
           {PILLARS.map((item) => (
             <div
               key={item.step}
-              className={`rounded-2xl bg-[#F8FAFC] border border-[#E2E8F0] flex flex-col gap-1 ${
+              className={`rounded-2xl bg-[#F8FAFC] shadow-[0_4px_16px_rgba(15,23,42,0.04)] flex flex-col gap-1 ${
                 isWideProjector ? 'p-5' : 'p-4'
               }`}
             >

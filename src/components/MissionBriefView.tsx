@@ -136,7 +136,7 @@ export function MissionBriefView({
       {/* Top Optional Preview Nav */}
       {isPreview && onExitPreview && (
         <div className="sticky top-0 z-30 px-4 pt-3 flex justify-center pointer-events-none">
-          <div className="pointer-events-auto inline-flex items-center gap-2 rounded-full bg-white/95 backdrop-blur-md border border-[#CBD5E1] shadow-[0_8px_24px_rgba(15,23,42,0.08)] px-2 py-1.5">
+          <div className="pointer-events-auto inline-flex items-center gap-2 rounded-full bg-white/95 backdrop-blur-md shadow-[0_8px_24px_rgba(15,23,42,0.1)] px-2 py-1.5">
             <button
               type="button"
               onClick={onExitPreview}
@@ -152,7 +152,7 @@ export function MissionBriefView({
       {/* Centered 3D Receipt Printer + Rolling Paper Stage */}
       <main className="w-full max-w-[440px] mx-auto px-4 pt-5 pb-16 flex flex-col items-center">
         {/* 3D Thermal Printer Head / Slot */}
-        <div className="relative z-20 w-full rounded-t-3xl rounded-b-2xl bg-gradient-to-b from-[#FFFFFF] via-[#F1F5F9] to-[#DCE3EC] border border-[#CBD5E1] shadow-[0_14px_34px_rgba(15,23,42,0.12),inset_0_2px_0_rgba(255,255,255,0.9)] px-5 pt-4 pb-3.5">
+        <div className="relative z-20 w-full rounded-t-3xl rounded-b-2xl bg-gradient-to-b from-[#FFFFFF] via-[#F1F5F9] to-[#DCE3EC] shadow-[0_14px_34px_rgba(15,23,42,0.12),inset_0_2px_0_rgba(255,255,255,0.9)] px-5 pt-4 pb-3.5">
           <div className="flex items-center justify-between gap-2 mb-3">
             <div className="flex items-center gap-2">
               <Printer className="w-4 h-4 text-[#1A73E8]" aria-hidden="true" />
@@ -234,7 +234,7 @@ export function MissionBriefView({
                 transformOrigin: 'center center',
                 transformStyle: 'preserve-3d',
               }}
-              className="relative bg-white text-[#111827] shadow-[0_24px_48px_rgba(15,23,42,0.16),0_6px_16px_rgba(15,23,42,0.08)] border-x border-[#E2E8F0]"
+              className="relative bg-white text-[#111827] shadow-[0_24px_48px_rgba(15,23,42,0.16),0_6px_16px_rgba(15,23,42,0.08)]"
             >
               {/* Dynamic Thermal Paper Specular Sheen Driven by Scroll */}
               <motion.div
@@ -356,7 +356,7 @@ export function MissionBriefView({
                     </span>
                   </div>
 
-                  <div className="rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] p-3.5 space-y-2.5">
+                  <div className="rounded-xl bg-[#F8FAFC] p-3.5 space-y-2.5">
                     <div className="flex items-start gap-2.5">
                       <div className="w-9 h-9 rounded-lg bg-[#E6F4EA] text-[#1E8E3E] flex items-center justify-center shrink-0 mt-0.5">
                         <ReelIcon name={solution.icon} className="w-4.5 h-4.5" />
@@ -434,7 +434,7 @@ export function MissionBriefView({
                     <button
                       type="button"
                       onClick={handleReplayRoll}
-                      className="w-full min-h-[40px] px-4 py-2 rounded-xl border border-[#CBD5E1] bg-[#F8FAFC] hover:bg-[#F1F5F9] text-[#475569] hover:text-[#111827] text-xs font-semibold inline-flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      className="w-full min-h-[40px] px-4 py-2 rounded-xl bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#475569] hover:text-[#111827] text-xs font-semibold inline-flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                     >
                       <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
                       <span>Putar Ulang Efek Kertas</span>
@@ -452,7 +452,7 @@ export function MissionBriefView({
                 }}
                 aria-hidden="true"
               >
-                <div className="relative h-7 bg-gradient-to-b from-[#FFFFFF] via-[#F8FAFC] to-[#E9EEF5] border-t border-[#E2E8F0]/60 shadow-[inset_0_5px_10px_rgba(255,255,255,0.95),0_12px_22px_rgba(15,23,42,0.14)]">
+                <div className="relative h-7 bg-gradient-to-b from-[#FFFFFF] via-[#F8FAFC] to-[#E9EEF5] shadow-[inset_0_5px_10px_rgba(255,255,255,0.95),0_12px_22px_rgba(15,23,42,0.14)]">
                   <div className="absolute inset-x-0 bottom-0 h-2.5 bg-gradient-to-b from-transparent to-[#CBD5E1]/45" />
                 </div>
                 <div className="-mb-3 drop-shadow-[0_6px_8px_rgba(15,23,42,0.1)]">

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
   Laptop,
@@ -71,7 +71,8 @@ function RevealChevronMark({
   variant: 'red' | 'green';
   className?: string;
 }) {
-  const gradId = `chevron-grad-${variant}-${direction}`;
+  const reactId = useId();
+  const gradId = `chevron-grad-${variant}-${direction}-${reactId.replace(/:/g, '')}`;
   const colors =
     variant === 'green'
       ? { start: '#14532D', end: '#22C55E' }
@@ -343,7 +344,7 @@ export function MissionResultShowcase({
               exit="exit"
               transition={{ duration: 0.54, ease: EASE_CINEMATIC }}
               aria-label="The Problem"
-              className={`relative w-full rounded-3xl bg-white border border-[#CBD5E1] shadow-[0_22px_60px_rgba(234,67,53,0.12)] overflow-hidden flex flex-col justify-between ${
+              className={`relative w-full rounded-3xl bg-white shadow-[0_22px_60px_rgba(234,67,53,0.12)] overflow-hidden flex flex-col justify-between ${
                 isWideProjector
                   ? 'min-h-[410px] xl:min-h-[460px]'
                   : 'min-h-[340px] sm:min-h-[390px]'
@@ -476,7 +477,7 @@ export function MissionResultShowcase({
               exit="exit"
               transition={{ duration: 0.54, ease: EASE_CINEMATIC }}
               aria-label="The App"
-              className={`relative w-full rounded-3xl bg-white border border-[#CBD5E1] shadow-[0_22px_60px_rgba(52,168,83,0.13)] overflow-hidden flex flex-col justify-between ${
+              className={`relative w-full rounded-3xl bg-white shadow-[0_22px_60px_rgba(52,168,83,0.13)] overflow-hidden flex flex-col justify-between ${
                 isWideProjector
                   ? 'min-h-[410px] xl:min-h-[460px]'
                   : 'min-h-[340px] sm:min-h-[390px]'
@@ -596,7 +597,7 @@ export function MissionResultShowcase({
                         delay: 1.3 + idx * 0.32,
                         ease: EASE_CINEMATIC,
                       }}
-                      className={`flex items-start gap-2.5 rounded-2xl bg-[#F8FAFC] border border-[#E2E8F0] font-medium text-[#1F2937] leading-snug ${
+                      className={`flex items-start gap-2.5 rounded-2xl bg-[#F8FAFC] shadow-[0_2px_10px_rgba(15,23,42,0.04)] font-medium text-[#1F2937] leading-snug ${
                         isWideProjector
                           ? 'px-5 py-3.5 text-sm xl:text-base'
                           : 'px-4 py-3 text-xs sm:text-sm'
@@ -643,7 +644,7 @@ export function MissionResultShowcase({
                 background:
                   'linear-gradient(180deg, #F8FAFF 0%, #DBEAFE 32%, #3B82F6 76%, #1A73E8 100%)',
               }}
-              className={`relative w-full rounded-3xl border border-[#BFDBFE] shadow-[0_24px_64px_rgba(26,115,232,0.22)] overflow-hidden flex flex-col justify-between ${
+              className={`relative w-full rounded-3xl shadow-[0_24px_64px_rgba(26,115,232,0.22)] overflow-hidden flex flex-col justify-between ${
                 isWideProjector
                   ? 'min-h-[410px] xl:min-h-[460px]'
                   : 'min-h-[340px] sm:min-h-[390px]'
@@ -661,7 +662,7 @@ export function MissionResultShowcase({
                   initial={{ opacity: 0, y: 20, scale: 0.96 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   transition={{ duration: 0.52, delay: 0.12, ease: EASE_CINEMATIC }}
-                  className={`relative w-full rounded-[28px] bg-white/98 border-2 border-white shadow-[0_20px_54px_rgba(15,23,42,0.16)] flex flex-col items-center justify-center text-center ${
+                  className={`relative w-full rounded-[28px] bg-white/98 shadow-[0_20px_54px_rgba(15,23,42,0.16)] flex flex-col items-center justify-center text-center ${
                     isWideProjector
                       ? 'max-w-4xl min-h-[295px] px-14 pt-12 pb-14'
                       : 'max-w-3xl min-h-[245px] sm:min-h-[270px] px-6 sm:px-12 pt-11 pb-14'
@@ -675,7 +676,7 @@ export function MissionResultShowcase({
                     className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2"
                   >
                     <span
-                      className={`inline-flex items-center justify-center rounded-full bg-[#111827] text-white border-2 border-white shadow-[0_8px_22px_rgba(15,23,42,0.24)] font-bold tracking-tight whitespace-nowrap ${
+                      className={`inline-flex items-center justify-center rounded-full bg-[#111827] text-white shadow-[0_8px_22px_rgba(15,23,42,0.24)] font-bold tracking-tight whitespace-nowrap ${
                         isWideProjector
                           ? 'px-9 py-2.5 text-2xl'
                           : 'px-7 py-2 text-lg sm:text-xl'
@@ -743,7 +744,7 @@ export function MissionResultShowcase({
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     transition={{ duration: 0.45, delay: 1.12, ease: EASE_CINEMATIC }}
                     aria-label={`Target perangkat: ${deviceIndicator.label}`}
-                    className={`absolute bottom-3.5 right-4 sm:bottom-4 sm:right-5 inline-flex items-center gap-2 rounded-xl bg-[#F8FAFC] border border-[#CBD5E1] text-[#111827] font-bold shadow-xs ${
+                    className={`absolute bottom-3.5 right-4 sm:bottom-4 sm:right-5 inline-flex items-center gap-2 rounded-xl bg-[#F1F5F9] text-[#111827] font-bold shadow-[0_4px_14px_rgba(15,23,42,0.06)] ${
                       isWideProjector ? 'px-4 py-2 text-sm' : 'px-3.5 py-1.5 text-xs sm:text-sm'
                     }`}
                   >
@@ -784,11 +785,11 @@ export function MissionResultShowcase({
               exit="exit"
               transition={{ duration: 0.5, ease: EASE_CINEMATIC }}
               aria-label="Kartu Misi"
-              className="w-full max-w-5xl mx-auto bg-white rounded-3xl border border-[#CBD5E1] shadow-[0_18px_48px_rgba(15,23,42,0.08)] overflow-hidden"
+              className="w-full max-w-5xl mx-auto bg-white rounded-3xl shadow-[0_18px_48px_rgba(15,23,42,0.08)] overflow-hidden"
             >
               {/* Card Header */}
               <div
-                className={`border-b border-[#F1F3F4] flex items-center justify-between gap-4 ${
+                className={`bg-[#F8FAFC]/70 flex items-center justify-between gap-4 ${
                   isWideProjector ? 'px-7 py-3.5' : 'px-6 py-3'
                 }`}
               >
@@ -824,7 +825,7 @@ export function MissionResultShowcase({
                     type="button"
                     onClick={() => setIsQrZoomed(true)}
                     aria-label={`Perbesar QR Code Kartu Misi ${displayName || `Peserta #${participantNumber}`}`}
-                    className="p-2.5 bg-white rounded-2xl border border-[#E2E8F0] shadow-xs hover:border-[#1A73E8] hover:shadow-md transition-all cursor-zoom-in"
+                    className="p-2.5 bg-white rounded-2xl shadow-[0_6px_22px_rgba(15,23,42,0.08)] hover:shadow-[0_10px_28px_rgba(26,115,232,0.18)] transition-all cursor-zoom-in"
                   >
                     <QrCodeSvg
                       url={briefUrl}
@@ -838,7 +839,7 @@ export function MissionResultShowcase({
 
                 {/* Right Kartu Misi Content */}
                 <div
-                  className={`rounded-2xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-2.5 min-w-0 ${
+                  className={`rounded-2xl bg-[#F8FAFC] space-y-2.5 min-w-0 ${
                     isWideProjector ? 'p-4' : 'p-3.5'
                   }`}
                 >
@@ -869,7 +870,7 @@ export function MissionResultShowcase({
                       {mission.solution.contextualFeatures.map((feat, idx) => (
                         <li
                           key={idx}
-                          className={`flex items-start gap-1.5 rounded-xl bg-white border border-[#E2E8F0] px-2.5 py-1.5 font-medium text-[#1F2937] leading-snug ${
+                          className={`flex items-start gap-1.5 rounded-xl bg-white shadow-[0_2px_8px_rgba(15,23,42,0.04)] px-2.5 py-1.5 font-medium text-[#1F2937] leading-snug ${
                             isWideProjector ? 'text-xs' : 'text-[11px]'
                           }`}
                         >
@@ -954,7 +955,7 @@ export function MissionResultShowcase({
 
               {/* Clean Footer Bar (No Scan QR text) */}
               <div
-                className={`bg-[#F8FAFC] border-t border-[#E2E8F0] flex items-center justify-end ${
+                className={`bg-[#F8FAFC]/80 flex items-center justify-end ${
                   isWideProjector ? 'px-7 py-3' : 'px-6 py-2.5'
                 }`}
               >
@@ -986,7 +987,7 @@ export function MissionResultShowcase({
           onClick={() => setIsQrZoomed(false)}
         >
           <div
-            className="relative bg-white rounded-3xl border border-[#CBD5E1] p-6 sm:p-8 shadow-[0_24px_64px_rgba(15,23,42,0.28)] flex flex-col items-center gap-4"
+            className="relative bg-white rounded-3xl p-6 sm:p-8 shadow-[0_24px_64px_rgba(15,23,42,0.28)] flex flex-col items-center gap-4"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -1007,7 +1008,7 @@ export function MissionResultShowcase({
               </h3>
             </div>
 
-            <div className="p-3 bg-white rounded-2xl border border-[#E2E8F0]">
+            <div className="p-3 bg-[#F8FAFC] rounded-2xl">
               <QrCodeSvg
                 url={briefUrl}
                 label={`QR Code Besar ${displayName || `Peserta #${participantNumber}`}`}
