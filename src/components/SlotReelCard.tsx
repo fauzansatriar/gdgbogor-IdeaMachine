@@ -1,4 +1,4 @@
-import { HelpCircle } from 'lucide-react';
+import { useRef, useState } from 'react';
 import { PoolIconName } from '../data/pools';
 import { ReelIcon } from './ReelIcon';
 
@@ -10,6 +10,7 @@ export interface ReelTheme {
   accentColor: string;
   softBgClass: string;
   softTextClass: string;
+  mysteryImageSrc?: string;
 }
 
 export interface ReelDisplayData {
@@ -30,6 +31,8 @@ interface SlotReelCardProps {
   isSpinning: boolean;
   isFocusMode?: boolean;
   isWideProjector?: boolean;
+  onSwipeLeft?: () => void;
+  onSwipeRight?: () => void;
 }
 
 export function SlotReelCard({
@@ -39,11 +42,91 @@ export function SlotReelCard({
   isSpinning,
   isFocusMode = false,
   isWideProjector = false,
+  onSwipeLeft,
+  onSwipeRight,
 }: SlotReelCardProps) {
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const [swipeOffsetX, setSwipeOffsetX] = useState(0);
+  const isSwipingRef = useRef(false);
+
+  const hasSwipeHandlers = Boolean(onSwipeLeft || onSwipeRight);
+
+  const handleTouchStart = (e: React.TouchEvent<HTMLElement>) => {
+    if (!hasSwipeHandlers || e.touches.length !== 1) return;
+    touchStartRef.current = {
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY,
+    };
+    isSwipingRef.current = false;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLElement>) => {
+    if (!hasSwipeHandlers || !touchStartRef.current || e.touches.length !== 1) return;
+    const dx = e.touches[0].clientX - touchStartRef.current.x;
+    const dy = e.touches[0].clientY - touchStartRef.current.y;
+
+    if (!isSwipingRef.current) {
+      if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.15) {
+        isSwipingRef.current = true;
+      } else {
+        return;
+      }
+    }
+
+    const clamped = Math.max(-72, Math.min(72, dx * 0.45));
+    setSwipeOffsetX(clamped);
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent<HTMLElement>) => {
+    if (!hasSwipeHandlers || !touchStartRef.current) {
+      setSwipeOffsetX(0);
+      return;
+    }
+
+    const touch = e.changedTouches[0];
+    const dx = touch.clientX - touchStartRef.current.x;
+    const dy = touch.clientY - touchStartRef.current.y;
+    const wasHorizontalSwipe =
+      Math.abs(dx) >= 48 && Math.abs(dx) > Math.abs(dy) * 1.15;
+
+    touchStartRef.current = null;
+    isSwipingRef.current = false;
+    setSwipeOffsetX(0);
+
+    if (!wasHorizontalSwipe) return;
+
+    if (dx < 0) {
+      onSwipeLeft?.();
+    } else {
+      onSwipeRight?.();
+    }
+  };
+
+  const handleTouchCancel = () => {
+    touchStartRef.current = null;
+    isSwipingRef.current = false;
+    setSwipeOffsetX(0);
+  };
+
   return (
     <section
       aria-label={`${theme.stepLabel}: ${theme.headerTitle}`}
-      className={`flex flex-col rounded-2xl border-2 transition-colors duration-200 bg-white overflow-hidden ${
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchCancel}
+      style={
+        swipeOffsetX !== 0
+          ? {
+              transform: `translate3d(${swipeOffsetX}px, 0, 0)`,
+              transition: 'none',
+            }
+          : {
+              transform: 'translate3d(0, 0, 0)',
+              transition: 'transform 220ms cubic-bezier(0.16, 1, 0.3, 1)',
+            }
+      }
+      className={`touch-pan-y flex flex-col rounded-2xl border-2 transition-colors duration-200 bg-white overflow-hidden select-none lg:select-auto ${
         isWideProjector
           ? 'min-h-[280px] lg:h-[clamp(290px,50vh,430px)]'
           : isFocusMode
@@ -55,7 +138,7 @@ export function SlotReelCard({
           : 'border-[#CBD5E1]'
       }`}
     >
-      {/* Clean Google Gradient Header (No Per-Card Lock/Reroll Controls) */}
+      {/* Clean Google Gradient Header */}
       <div
         className={`px-4 py-2.5 flex items-center justify-between gap-2 bg-gradient-to-r ${theme.gradientClass} ${theme.headerTextClass} shrink-0`}
       >
@@ -100,23 +183,22 @@ export function SlotReelCard({
         />
 
         {!isRevealed && !isSpinning ? (
-          /* High-Contrast Mystery State Before Spin */
-          <div className="flex-1 flex flex-col items-center justify-center text-center px-3 py-6">
-            <div
-              className={`${isWideProjector ? 'w-16 h-16' : 'w-14 h-14'} rounded-2xl ${theme.softBgClass} ${theme.softTextClass} flex items-center justify-center mb-3 border border-black/5`}
-            >
-              <HelpCircle className={isWideProjector ? 'w-8 h-8' : 'w-7 h-7'} aria-hidden="true" />
-            </div>
-            <div className={`${isWideProjector ? 'text-lg' : 'text-base'} font-bold text-[#111827]`}>
-              Masih Rahasia
-            </div>
-            <p
-              className={`mt-1 text-[#4B5563] max-w-[22ch] leading-relaxed ${
-                isWideProjector ? 'text-sm' : 'text-xs sm:text-[13px]'
-              }`}
-            >
-              Putar mesin slot untuk membuka kejutan tantangan.
-            </p>
+          /* Clean Transparent 3D Glassmorphism Question Mark Only */
+          <div className="flex-1 flex items-center justify-center p-2">
+            {theme.mysteryImageSrc ? (
+              <img
+                src={theme.mysteryImageSrc}
+                alt={`Ikon misteri ${theme.headerTitle}`}
+                referrerPolicy="no-referrer"
+                className={`object-contain select-none pointer-events-none drop-shadow-[0_14px_20px_rgba(15,23,42,0.14)] ${
+                  isWideProjector
+                    ? 'w-40 h-40'
+                    : isFocusMode
+                      ? 'w-32 h-32 sm:w-36 sm:h-36'
+                      : 'w-28 h-28'
+                }`}
+              />
+            ) : null}
           </div>
         ) : isSpinning ? (
           /* Dramatic CSS Blur + Vibration + Vertical Streak Drum Spin */
@@ -195,19 +277,15 @@ export function SlotReelCard({
           </div>
         )}
 
-        {/* Crisp Footer Status */}
-        <div className="pt-2.5 mt-3 border-t border-[#F1F5F9] flex items-center justify-between text-[11.5px] font-medium text-[#4B5563] shrink-0">
-          <span>
-            {isSpinning
-              ? 'Berputar cepat...'
-              : !isRevealed
-                ? 'Menunggu spin'
-                : 'Hasil terbuka'}
-          </span>
-          <span className="tabular-nums font-bold text-[#111827]">
-            {isSpinning ? 'SPIN' : !isRevealed ? 'SEALED' : 'OPEN'}
-          </span>
-        </div>
+        {/* Crisp Footer Status (shown during spin or when revealed) */}
+        {(isSpinning || isRevealed) && (
+          <div className="pt-2.5 mt-3 border-t border-[#F1F5F9] flex items-center justify-between text-[11.5px] font-medium text-[#4B5563] shrink-0">
+            <span>{isSpinning ? 'Berputar cepat...' : 'Hasil terbuka'}</span>
+            <span className="tabular-nums font-bold text-[#111827]">
+              {isSpinning ? 'SPIN' : 'OPEN'}
+            </span>
+          </div>
+        )}
       </div>
     </section>
   );

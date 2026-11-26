@@ -7,7 +7,6 @@ import {
   Flag,
   Maximize2,
   Minimize2,
-  Pencil,
   RotateCcw,
   User,
   Volume2,
@@ -38,6 +37,10 @@ import { sfx } from './utils/audio';
 import { MissionBriefPayload, decodeBriefToken } from './utils/briefCodec';
 import { downloadAllSummaryPdf, downloadParticipantPdf } from './utils/pdfExport';
 import { useProjectorDisplay } from './hooks/useProjectorDisplay';
+import questionRedTransparent from './assets/images/question_red_transparent.png';
+import questionBlueTransparent from './assets/images/question_blue_transparent.png';
+import questionGreenTransparent from './assets/images/question_green_transparent.png';
+import questionAmberTransparent from './assets/images/question_amber_transparent.png';
 
 type AppPage = 'cover' | 'machine' | 'timer';
 
@@ -59,39 +62,43 @@ const INITIAL_PARTICIPANTS: ParticipantSlot[] = [
 const REEL_THEMES: [ReelTheme, ReelTheme, ReelTheme, ReelTheme] = [
   {
     stepLabel: '01 · MASALAH',
-    headerTitle: 'Masalah Sehari-hari',
-    gradientClass: 'from-[#4285F4] to-[#2563EB]',
-    headerTextClass: 'text-white',
-    accentColor: '#4285F4',
-    softBgClass: 'bg-[#E8F0FE]',
-    softTextClass: 'text-[#1A73E8]',
-  },
-  {
-    stepLabel: '02 · PENGGUNA',
-    headerTitle: 'Siapa Penggunanya',
-    gradientClass: 'from-[#EA4335] to-[#FB7185]',
+    headerTitle: 'The Problem',
+    gradientClass: 'from-[#EA4335] to-[#DC2626]',
     headerTextClass: 'text-white',
     accentColor: '#EA4335',
     softBgClass: 'bg-[#FEE2E2]',
     softTextClass: 'text-[#EA4335]',
+    mysteryImageSrc: questionRedTransparent,
   },
   {
-    stepLabel: '03 · IDE APLIKASI',
-    headerTitle: 'Aplikasi yang Dibuat',
+    stepLabel: '02 · SOLUSI AI',
+    headerTitle: 'The App',
     gradientClass: 'from-[#34A853] to-[#06B6D4]',
     headerTextClass: 'text-white',
     accentColor: '#34A853',
     softBgClass: 'bg-[#E6F4EA]',
     softTextClass: 'text-[#1E8E3E]',
+    mysteryImageSrc: questionGreenTransparent,
+  },
+  {
+    stepLabel: '03 · PENGGUNA',
+    headerTitle: 'The User',
+    gradientClass: 'from-[#4285F4] to-[#1A73E8]',
+    headerTextClass: 'text-white',
+    accentColor: '#4285F4',
+    softBgClass: 'bg-[#E8F0FE]',
+    softTextClass: 'text-[#1A73E8]',
+    mysteryImageSrc: questionBlueTransparent,
   },
   {
     stepLabel: '04 · PERANGKAT',
-    headerTitle: 'Dipakai di Mana',
+    headerTitle: 'The Device',
     gradientClass: 'from-[#FBBF24] to-[#F59E0B]',
     headerTextClass: 'text-[#111827]',
     accentColor: '#D97706',
     softBgClass: 'bg-[#FEF3C7]',
     softTextClass: 'text-[#B45309]',
+    mysteryImageSrc: questionAmberTransparent,
   },
 ];
 
@@ -133,7 +140,8 @@ function pickRandomIndex(length: number, exclude?: number): number {
 export default function App() {
   const [urlBriefPayload] = useState<MissionBriefPayload | null>(() => {
     if (typeof window === 'undefined') return null;
-    const token = new URLSearchParams(window.location.search).get('brief');
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('b') || params.get('brief');
     return token ? decodeBriefToken(token) : null;
   });
 
@@ -170,10 +178,10 @@ export default function App() {
   const [reelIndices, setReelIndices] = useState<[number, number, number, number]>(() => {
     if (initialActiveSlot?.challenge) {
       const p = PROBLEMS.findIndex((x) => x.id === initialActiveSlot.challenge!.problemId);
-      const u = TARGET_USERS.findIndex((x) => x.id === initialActiveSlot.challenge!.userId);
       const s = SOLUTIONS.findIndex((x) => x.id === initialActiveSlot.challenge!.solutionId);
+      const u = TARGET_USERS.findIndex((x) => x.id === initialActiveSlot.challenge!.userId);
       const d = DEVICE_TARGETS.findIndex((x) => x.id === initialActiveSlot.challenge!.deviceId);
-      return [p >= 0 ? p : 0, u >= 0 ? u : 0, s >= 0 ? s : 0, d >= 0 ? d : 0];
+      return [p >= 0 ? p : 0, s >= 0 ? s : 0, u >= 0 ? u : 0, d >= 0 ? d : 0];
     }
     return [0, 0, 0, 0];
   });
@@ -187,6 +195,7 @@ export default function App() {
   const [revealGeneration, setRevealGeneration] = useState(0);
   const [revealStage, setRevealStage] = useState<RevealStage>('brief');
   const [isStageAutoPlay, setIsStageAutoPlay] = useState(false);
+  const [activeMobileReelIdx, setActiveMobileReelIdx] = useState<0 | 1 | 2 | 3>(0);
 
   const [qrModalSlot, setQrModalSlot] = useState<ParticipantSlot | null>(null);
   const [isRecapOpen, setIsRecapOpen] = useState(false);
@@ -317,8 +326,8 @@ export default function App() {
 
     const poolsLengths = [
       PROBLEMS.length,
-      TARGET_USERS.length,
       SOLUTIONS.length,
+      TARGET_USERS.length,
       DEVICE_TARGETS.length,
     ];
     const columns = [0, 1, 2, 3] as const;
@@ -327,6 +336,7 @@ export default function App() {
 
     setActiveMission(null);
     setHasSpun(true);
+    setActiveMobileReelIdx(0);
     setSpinningCols([true, true, true, true]);
     setRevealStage('problem');
     setIsStageAutoPlay(true);
@@ -446,6 +456,7 @@ export default function App() {
             next[colIdx] = false;
             return next;
           });
+          setActiveMobileReelIdx(colIdx);
 
           sfx.playReelStop(colIdx);
 
@@ -744,8 +755,8 @@ export default function App() {
   }
 
   const rawProblem = PROBLEMS[reelIndices[0]];
-  const rawUser = TARGET_USERS[reelIndices[1]];
-  const rawSolution = SOLUTIONS[reelIndices[2]];
+  const rawSolution = SOLUTIONS[reelIndices[1]];
+  const rawUser = TARGET_USERS[reelIndices[2]];
   const rawDevice = DEVICE_TARGETS[reelIndices[3]];
 
   const fallbackMission = buildContextualMission(
@@ -759,10 +770,10 @@ export default function App() {
 
   const prevProblem = PROBLEMS[(reelIndices[0] - 1 + PROBLEMS.length) % PROBLEMS.length];
   const nextProblem = PROBLEMS[(reelIndices[0] + 1) % PROBLEMS.length];
-  const prevUser = TARGET_USERS[(reelIndices[1] - 1 + TARGET_USERS.length) % TARGET_USERS.length];
-  const nextUser = TARGET_USERS[(reelIndices[1] + 1) % TARGET_USERS.length];
-  const prevSolution = SOLUTIONS[(reelIndices[2] - 1 + SOLUTIONS.length) % SOLUTIONS.length];
-  const nextSolution = SOLUTIONS[(reelIndices[2] + 1) % SOLUTIONS.length];
+  const prevSolution = SOLUTIONS[(reelIndices[1] - 1 + SOLUTIONS.length) % SOLUTIONS.length];
+  const nextSolution = SOLUTIONS[(reelIndices[1] + 1) % SOLUTIONS.length];
+  const prevUser = TARGET_USERS[(reelIndices[2] - 1 + TARGET_USERS.length) % TARGET_USERS.length];
+  const nextUser = TARGET_USERS[(reelIndices[2] + 1) % TARGET_USERS.length];
   const prevDevice = DEVICE_TARGETS[(reelIndices[3] - 1 + DEVICE_TARGETS.length) % DEVICE_TARGETS.length];
   const nextDevice = DEVICE_TARGETS[(reelIndices[3] + 1) % DEVICE_TARGETS.length];
 
@@ -787,23 +798,23 @@ export default function App() {
       nextTitle: nextProblem.title,
     },
     {
-      key: `${col1Mission.targetUser.id}-${col1Mission.problem.id}`,
-      icon: col1Mission.targetUser.icon,
-      title: col1Mission.targetUser.title,
-      meta: col1Mission.targetUser.context,
-      description: col1Mission.targetUser.contextualDescription,
-      prevTitle: prevUser.title,
-      nextTitle: nextUser.title,
-    },
-    {
-      key: `${col2Mission.solution.id}-${col2Mission.problem.id}-${col2Mission.targetUser.id}`,
-      icon: col2Mission.solution.icon,
-      title: col2Mission.solution.title,
-      meta: col2Mission.solution.techStack,
-      description: col2Mission.solution.contextualHowToBuild,
-      bullets: col2Mission.solution.contextualFeatures,
+      key: `${col1Mission.solution.id}-${col1Mission.problem.id}-${col1Mission.targetUser.id}`,
+      icon: col1Mission.solution.icon,
+      title: col1Mission.solution.title,
+      meta: col1Mission.solution.techStack,
+      description: col1Mission.solution.contextualHowToBuild,
+      bullets: col1Mission.solution.contextualFeatures,
       prevTitle: prevSolution.title,
       nextTitle: nextSolution.title,
+    },
+    {
+      key: `${col2Mission.targetUser.id}-${col2Mission.problem.id}`,
+      icon: col2Mission.targetUser.icon,
+      title: col2Mission.targetUser.title,
+      meta: col2Mission.targetUser.context,
+      description: col2Mission.targetUser.contextualDescription,
+      prevTitle: prevUser.title,
+      nextTitle: nextUser.title,
     },
     {
       key: col3Mission.device.id,
@@ -1065,46 +1076,76 @@ export default function App() {
               isWideProjector ? 'max-w-[1480px] gap-3' : 'max-w-[1360px] gap-2'
             }`}
           >
-            {/* Clean Participant Context Header (No Step Pills) */}
-            <div className="flex items-center justify-between gap-3 px-1">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <span
-                  className={`rounded-lg bg-[#1A73E8] text-white font-bold tabular-nums shrink-0 ${
-                    isWideProjector ? 'px-3 py-1 text-sm' : 'px-2.5 py-0.5 text-xs'
-                  }`}
-                >
-                  Peserta #{activeTurn}
-                </span>
-                <span
-                  className={`font-bold text-[#111827] truncate ${
-                    isWideProjector ? 'text-lg sm:text-xl' : 'text-base sm:text-lg'
-                  }`}
-                >
-                  {participantNameInput.trim() || `Peserta #${activeTurn}`}
-                </span>
-                {!isAnySpinning && (
-                  <button
-                    type="button"
-                    onClick={() => setIsNameConfirmed(false)}
-                    className="px-2 py-0.5 rounded-lg text-xs font-semibold text-[#5F6368] hover:text-[#111827] hover:bg-white border border-transparent hover:border-[#E2E8F0] inline-flex items-center gap-1 transition-colors shrink-0 cursor-pointer"
+            {/* Large Prominent Participant Name (Hidden on Kartu Misi stage to avoid duplicate name) */}
+            {!(machineStep === 'lock' && revealStage === 'brief') && (
+              <div className="flex items-center justify-between gap-3 px-1">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span
+                    className={`rounded-xl bg-[#1A73E8] text-white font-bold tabular-nums shrink-0 ${
+                      isWideProjector ? 'px-3.5 py-1.5 text-sm' : 'px-2.5 py-1 text-xs'
+                    }`}
                   >
-                    <Pencil className="w-3 h-3" aria-hidden="true" />
-                    <span>Ubah Nama</span>
-                  </button>
-                )}
+                    #{activeTurn}
+                  </span>
+                  <h1
+                    className={`font-bold text-[#111827] tracking-tight truncate ${
+                      isWideProjector
+                        ? 'text-3xl xl:text-4xl'
+                        : 'text-2xl sm:text-3xl'
+                    }`}
+                  >
+                    {participantNameInput.trim() || `Peserta #${activeTurn}`}
+                  </h1>
+                </div>
               </div>
-            </div>
+            )}
 
             {machineStep === 'spin' ? (
-              /* Spinning / Mystery View: 4 Equal Slot Drums */
-              <div
-                className={`rounded-3xl bg-[#F1F5F9] border border-[#CBD5E1] shadow-[0_12px_40px_rgba(15,23,42,0.06)] ${
-                  isWideProjector ? 'p-4 sm:p-5' : 'p-3 sm:p-4'
-                }`}
-              >
+              /* Spinning / Mystery View: 4 Clean Slot Cards Without Outer Tray Stroke */
+              <div>
+                {/* Mobile & Tablet Swipeable Single-Reel Carousel */}
+                <div className="lg:hidden space-y-2.5">
+                  <div className="flex items-center justify-between gap-2 px-1">
+                    <div className="flex items-center gap-1.5">
+                      {([0, 1, 2, 3] as const).map((idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setActiveMobileReelIdx(idx)}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
+                            activeMobileReelIdx === idx
+                              ? 'bg-[#111827] text-white'
+                              : 'bg-white/90 text-[#64748B] border border-[#E2E8F0]'
+                          }`}
+                        >
+                          0{idx + 1}
+                        </button>
+                      ))}
+                    </div>
+                    <span className="text-[11px] font-medium text-[#64748B] select-none">
+                      Geser kartu kiri/kanan
+                    </span>
+                  </div>
+
+                  <SlotReelCard
+                    theme={REEL_THEMES[activeMobileReelIdx]}
+                    item={reelItems[activeMobileReelIdx]}
+                    isRevealed={hasSpun}
+                    isSpinning={spinningCols[activeMobileReelIdx]}
+                    isFocusMode
+                    onSwipeLeft={() =>
+                      setActiveMobileReelIdx((prev) => (prev < 3 ? ((prev + 1) as 0 | 1 | 2 | 3) : 0))
+                    }
+                    onSwipeRight={() =>
+                      setActiveMobileReelIdx((prev) => (prev > 0 ? ((prev - 1) as 0 | 1 | 2 | 3) : 3))
+                    }
+                  />
+                </div>
+
+                {/* Desktop 4-Column Slot Grid */}
                 <div
-                  className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 items-stretch ${
-                    isWideProjector ? 'gap-4' : 'gap-3'
+                  className={`hidden lg:grid lg:grid-cols-4 items-stretch ${
+                    isWideProjector ? 'gap-5' : 'gap-4'
                   }`}
                 >
                   {([0, 1, 2, 3] as const).map((idx) => (
@@ -1121,7 +1162,7 @@ export default function App() {
                 </div>
               </div>
             ) : (
-              /* Revealed Result View: Cinematic Stage-by-Stage Reveal -> Direct QR Handover Brief */
+              /* Revealed Result View: Cinematic Stage-by-Stage Reveal -> Direct Kartu Misi */
               <MissionResultShowcase
                 mission={contextualMission}
                 participantNumber={activeTurn}
@@ -1135,15 +1176,6 @@ export default function App() {
                   if (stopAutoPlay) setIsStageAutoPlay(false);
                   setRevealStage(nextStage);
                 }}
-                onOpenPreview={(payload) => setPreviewBrief(payload)}
-                onDownloadPdf={() =>
-                  handleDownloadSinglePdf({
-                    number: activeTurn,
-                    name: participantNameInput.trim(),
-                    challenge: buildCurrentChallenge(contextualMission),
-                    lockedAt: new Date().toISOString(),
-                  })
-                }
                 onConfirmAndAdvance={() => handleLockAndAdvance(contextualMission)}
               />
             )}

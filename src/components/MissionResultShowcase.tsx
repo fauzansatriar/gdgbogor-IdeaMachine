@@ -1,13 +1,17 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, Download, ExternalLink, Eye } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ArrowRight,
+  Laptop,
+  MonitorSmartphone,
+  Smartphone,
+  Tablet,
+  X,
+} from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { ContextualMission } from '../data/pools';
 import { sfx } from '../utils/audio';
-import {
-  MissionBriefPayload,
-  buildMissionBriefUrl,
-  generateQrDataUrl,
-} from '../utils/briefCodec';
+import { buildMissionBriefUrl } from '../utils/briefCodec';
+import { QrCodeSvg } from './QrCodeSvg';
 import { ReelIcon } from './ReelIcon';
 
 export type RevealStage = 'problem' | 'app' | 'user' | 'brief';
@@ -22,19 +26,12 @@ interface MissionResultShowcaseProps {
   isWideProjector?: boolean;
   advanceActionLabel: string;
   onSelectStage: (stage: RevealStage, stopAutoPlay?: boolean) => void;
-  onOpenPreview: (payload: MissionBriefPayload) => void;
-  onDownloadPdf: () => void;
   onConfirmAndAdvance: () => void;
 }
 
 const EASE_CINEMATIC: [number, number, number, number] = [0.16, 1, 0.3, 1];
 
-const STAGE_STEPS: { id: RevealStage; num: string; label: string }[] = [
-  { id: 'problem', num: '01', label: 'The Problem' },
-  { id: 'app', num: '02', label: 'The App' },
-  { id: 'user', num: '03', label: 'The User' },
-  { id: 'brief', num: '04', label: 'Mission Brief' },
-];
+const STAGE_ORDER: RevealStage[] = ['problem', 'app', 'user', 'brief'];
 
 /**
  * Calculates a relaxed, audience-friendly reveal duration in milliseconds
@@ -65,6 +62,96 @@ function calculateStageDurationMs(
   return Math.min(13000, Math.max(6500, Math.round(2800 + charCount * 58)));
 }
 
+function RevealChevronMark({
+  direction,
+  variant,
+  className = 'w-12 h-9',
+}: {
+  direction: 'up' | 'down';
+  variant: 'red' | 'green';
+  className?: string;
+}) {
+  const gradId = `chevron-grad-${variant}-${direction}`;
+  const colors =
+    variant === 'green'
+      ? { start: '#14532D', end: '#22C55E' }
+      : { start: '#991B1B', end: '#EF4444' };
+
+  return (
+    <svg
+      viewBox="0 0 64 44"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      aria-hidden="true"
+    >
+      <defs>
+        <linearGradient
+          id={gradId}
+          x1="32"
+          y1={direction === 'down' ? '4' : '40'}
+          x2="32"
+          y2={direction === 'down' ? '40' : '4'}
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop offset="0%" stopColor={colors.start} />
+          <stop offset="100%" stopColor={colors.end} />
+        </linearGradient>
+      </defs>
+      {direction === 'down' ? (
+        <path
+          d="M11 9.5C14.2 6.3 19.4 6.3 22.6 9.5L32 18.9L41.4 9.5C44.6 6.3 49.8 6.3 53 9.5C56.2 12.7 56.2 17.9 53 21.1L37.8 36.3C34.6 39.5 29.4 39.5 26.2 36.3L11 21.1C7.8 17.9 7.8 12.7 11 9.5Z"
+          fill={`url(#${gradId})`}
+          stroke="rgba(255,255,255,0.88)"
+          strokeWidth="1.6"
+        />
+      ) : (
+        <path
+          d="M11 34.5C14.2 37.7 19.4 37.7 22.6 34.5L32 25.1L41.4 34.5C44.6 37.7 49.8 37.7 53 34.5C56.2 31.3 56.2 26.1 53 22.9L37.8 7.7C34.6 4.5 29.4 4.5 26.2 7.7L11 22.9C7.8 26.1 7.8 31.3 11 34.5Z"
+          fill={`url(#${gradId})`}
+          stroke="rgba(255,255,255,0.88)"
+          strokeWidth="1.6"
+        />
+      )}
+    </svg>
+  );
+}
+
+function getDeviceIndicatorMeta(deviceId: string) {
+  switch (deviceId) {
+    case 'desktop':
+      return { label: 'Desktop', Icon: Laptop };
+    case 'tablet-kiosk':
+      return { label: 'Tablet', Icon: Tablet };
+    case 'cross-platform':
+      return { label: 'Mobile & Desktop', Icon: MonitorSmartphone };
+    case 'mobile':
+    default:
+      return { label: 'Mobile', Icon: Smartphone };
+  }
+}
+
+const stageVariants = {
+  enter: (dir: number) => ({
+    opacity: 0,
+    x: dir >= 0 ? 44 : -44,
+    scale: 0.975,
+    filter: 'blur(6px)',
+  }),
+  center: {
+    opacity: 1,
+    x: 0,
+    scale: 1,
+    filter: 'blur(0px)',
+  },
+  exit: (dir: number) => ({
+    opacity: 0,
+    x: dir >= 0 ? -44 : 44,
+    scale: 0.975,
+    filter: 'blur(6px)',
+  }),
+};
+
 export function MissionResultShowcase({
   mission,
   participantNumber,
@@ -75,11 +162,28 @@ export function MissionResultShowcase({
   isWideProjector = false,
   advanceActionLabel,
   onSelectStage,
-  onOpenPreview,
-  onDownloadPdf,
   onConfirmAndAdvance,
 }: MissionResultShowcaseProps) {
-  const [qrDataUrl, setQrDataUrl] = useState<string>('');
+  const [isQrZoomed, setIsQrZoomed] = useState(false);
+  const [transitionDir, setTransitionDir] = useState<number>(1);
+  const prevStageRef = useRef<RevealStage>(stage);
+
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const isSwipingRef = useRef(false);
+  const [swipeOffsetX, setSwipeOffsetX] = useState(0);
+
+  useEffect(() => {
+    const prevIdx = STAGE_ORDER.indexOf(prevStageRef.current);
+    const nextIdx = STAGE_ORDER.indexOf(stage);
+    if (prevIdx !== nextIdx) {
+      setTransitionDir(nextIdx >= prevIdx ? 1 : -1);
+      prevStageRef.current = stage;
+    }
+  }, [stage]);
+
+  useEffect(() => {
+    setIsQrZoomed(false);
+  }, [revealKey, stage]);
 
   const briefUrl = useMemo(
     () =>
@@ -97,20 +201,6 @@ export function MissionResultShowcase({
     [mission, participantName, participantNumber]
   );
 
-  useEffect(() => {
-    let active = true;
-    generateQrDataUrl(briefUrl, 340)
-      .then((dataUrl) => {
-        if (active) setQrDataUrl(dataUrl);
-      })
-      .catch(() => {
-        if (active) setQrDataUrl('');
-      });
-    return () => {
-      active = false;
-    };
-  }, [briefUrl]);
-
   const stageDurationMs = useMemo(() => {
     if (stage === 'brief') return 0;
     return calculateStageDurationMs(stage, mission);
@@ -123,6 +213,7 @@ export function MissionResultShowcase({
       stage === 'problem' ? 'app' : stage === 'app' ? 'user' : 'brief';
 
     const timeout = window.setTimeout(() => {
+      setTransitionDir(1);
       if (nextStage === 'brief') {
         sfx.playFanfare();
       } else {
@@ -134,554 +225,631 @@ export function MissionResultShowcase({
     return () => window.clearTimeout(timeout);
   }, [autoPlay, onSelectStage, revealKey, stage, stageDurationMs]);
 
-  const nextStepLabel =
-    stage === 'problem'
-      ? 'Lanjut ke The App'
-      : stage === 'app'
-        ? 'Lanjut ke The User'
-        : 'Buka Mission Brief + QR';
+  const navigateStage = (targetStage: RevealStage, stopAutoPlay = true) => {
+    const curIdx = STAGE_ORDER.indexOf(stage);
+    const nextIdx = STAGE_ORDER.indexOf(targetStage);
+    if (curIdx === nextIdx) return;
+
+    setTransitionDir(nextIdx > curIdx ? 1 : -1);
+    if (targetStage === 'brief') {
+      sfx.playFanfare();
+    } else if (nextIdx > curIdx) {
+      sfx.playReelStop(nextIdx);
+    }
+    onSelectStage(targetStage, stopAutoPlay);
+  };
 
   const handleAdvance = () => {
-    if (stage === 'problem') {
-      sfx.playReelStop(1);
-      onSelectStage('app', true);
-    } else if (stage === 'app') {
-      sfx.playReelStop(2);
-      onSelectStage('user', true);
-    } else if (stage === 'user') {
-      sfx.playFanfare();
-      onSelectStage('brief', true);
+    const curIdx = STAGE_ORDER.indexOf(stage);
+    if (curIdx < STAGE_ORDER.length - 1) {
+      navigateStage(STAGE_ORDER[curIdx + 1], true);
     }
   };
 
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length !== 1) return;
+    touchStartRef.current = {
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY,
+    };
+    isSwipingRef.current = false;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!touchStartRef.current || e.touches.length !== 1) return;
+    const dx = e.touches[0].clientX - touchStartRef.current.x;
+    const dy = e.touches[0].clientY - touchStartRef.current.y;
+
+    if (!isSwipingRef.current) {
+      if (Math.abs(dx) > 14 && Math.abs(dx) > Math.abs(dy) * 1.15) {
+        isSwipingRef.current = true;
+      } else {
+        return;
+      }
+    }
+
+    const curIdx = STAGE_ORDER.indexOf(stage);
+    const atStart = curIdx === 0 && dx > 0;
+    const atEnd = curIdx === STAGE_ORDER.length - 1 && dx < 0;
+    const factor = atStart || atEnd ? 0.18 : 0.42;
+    setSwipeOffsetX(Math.max(-80, Math.min(80, dx * factor)));
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!touchStartRef.current) {
+      setSwipeOffsetX(0);
+      return;
+    }
+
+    const touch = e.changedTouches[0];
+    const dx = touch.clientX - touchStartRef.current.x;
+    const dy = touch.clientY - touchStartRef.current.y;
+    const wasHorizontalSwipe =
+      Math.abs(dx) >= 48 && Math.abs(dx) > Math.abs(dy) * 1.15;
+
+    touchStartRef.current = null;
+    isSwipingRef.current = false;
+    setSwipeOffsetX(0);
+
+    if (!wasHorizontalSwipe) return;
+
+    const curIdx = STAGE_ORDER.indexOf(stage);
+    if (dx < 0 && curIdx < STAGE_ORDER.length - 1) {
+      navigateStage(STAGE_ORDER[curIdx + 1], true);
+    } else if (dx > 0 && curIdx > 0) {
+      navigateStage(STAGE_ORDER[curIdx - 1], true);
+    }
+  };
+
+  const handleTouchCancel = () => {
+    touchStartRef.current = null;
+    isSwipingRef.current = false;
+    setSwipeOffsetX(0);
+  };
+
   const displayName = participantName.trim();
+  const deviceIndicator = getDeviceIndicatorMeta(mission.device.id);
+  const DeviceIndicatorIcon = deviceIndicator.Icon;
 
   return (
-    <div className={`w-full flex flex-col ${isWideProjector ? 'gap-2.5' : 'gap-2'}`}>
-      {/* Subtle Cinematic Stage Progress Strip */}
-      <div className="flex flex-wrap items-center justify-between gap-2 px-1">
-        <div
-          className="flex flex-wrap items-center gap-1.5"
-          role="tablist"
-          aria-label="Tahapan Reveal Hasil"
-        >
-          {STAGE_STEPS.map((item) => {
-            const isActive = stage === item.id;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                role="tab"
-                aria-selected={isActive}
-                onClick={() => onSelectStage(item.id, true)}
-                className={`rounded-lg font-bold inline-flex items-center gap-1.5 transition-all cursor-pointer ${
-                  isWideProjector ? 'px-3 py-1.5 text-xs' : 'px-2.5 py-1 text-[11px]'
-                } ${
-                  isActive
-                    ? 'bg-[#111827] text-white shadow-xs'
-                    : 'bg-white/80 hover:bg-white text-[#64748B] hover:text-[#111827] border border-[#E2E8F0]'
-                }`}
-              >
-                <span className="tabular-nums opacity-75">{item.num}</span>
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        {stage !== 'brief' && (
-          <button
-            type="button"
-            onClick={handleAdvance}
-            className={`rounded-lg bg-[#E8F0FE] hover:bg-[#D2E3FC] text-[#1967D2] font-bold inline-flex items-center gap-1 transition-colors cursor-pointer ${
-              isWideProjector ? 'px-3.5 py-1.5 text-xs' : 'px-3 py-1 text-[11px]'
-            }`}
-          >
-            <span>{nextStepLabel}</span>
-            <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
-          </button>
-        )}
-      </div>
-
-      {/* Main Stage Viewport */}
-      <AnimatePresence mode="wait">
-        {stage === 'problem' && (
-          <motion.section
-            key={`stage-problem-${revealKey}`}
-            aria-label="The Problem"
-            initial={{ opacity: 0, y: 24, scale: 0.96, filter: 'blur(6px)' }}
-            animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
-            exit={{ opacity: 0, y: -18, scale: 0.96, filter: 'blur(6px)' }}
-            transition={{ duration: 0.58, ease: EASE_CINEMATIC }}
-            className={`relative w-full rounded-3xl bg-white border-2 border-[#4285F4]/45 shadow-[0_20px_60px_rgba(66,133,244,0.12)] overflow-hidden flex flex-col justify-between ${
-              isWideProjector
-                ? 'min-h-[380px] xl:min-h-[430px]'
-                : 'min-h-[300px] sm:min-h-[360px]'
-            }`}
-          >
-            <div
-              className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(66,133,244,0.09),transparent_60%)]"
-              aria-hidden="true"
-            />
-
-            <div className="relative z-10 px-6 py-4 sm:px-10 sm:py-5 border-b border-[#E2E8F0]/80 flex items-center justify-between">
-              <motion.div
-                initial={{ opacity: 0, x: -8 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.5, delay: 0.16, ease: EASE_CINEMATIC }}
-                className="flex items-center gap-2.5"
-              >
-                <span
-                  className={`px-3 py-1 rounded-lg bg-[#E8F0FE] text-[#1A73E8] font-bold uppercase tracking-wider ${
-                    isWideProjector ? 'text-sm' : 'text-xs'
-                  }`}
-                >
-                  The Problem
-                </span>
-                <span
-                  className={`font-semibold text-[#64748B] ${
-                    isWideProjector ? 'text-sm' : 'text-xs'
-                  }`}
-                >
-                  Masalah Sehari-hari
-                </span>
-              </motion.div>
-
-              <span
-                className={`font-bold tabular-nums text-[#94A3B8] ${
-                  isWideProjector ? 'text-sm' : 'text-xs'
-                }`}
-              >
-                01 / 03
-              </span>
-            </div>
-
-            <div
-              className={`relative z-10 flex-1 flex flex-col items-center justify-center text-center mx-auto ${
+    <div className="w-full flex flex-col">
+      {/* Main Swipeable Stage Viewport (No Step Tab Bar) */}
+      <div
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchCancel}
+        style={
+          swipeOffsetX !== 0
+            ? {
+                transform: `translate3d(${swipeOffsetX}px, 0, 0)`,
+                transition: 'none',
+              }
+            : {
+                transform: 'translate3d(0, 0, 0)',
+                transition: 'transform 220ms cubic-bezier(0.16, 1, 0.3, 1)',
+              }
+        }
+        className="touch-pan-y w-full"
+      >
+        <AnimatePresence mode="wait" custom={transitionDir}>
+          {stage === 'problem' && (
+            <motion.section
+              key={`stage-problem-${revealKey}`}
+              custom={transitionDir}
+              variants={stageVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ duration: 0.54, ease: EASE_CINEMATIC }}
+              aria-label="The Problem"
+              className={`relative w-full rounded-3xl bg-white border border-[#CBD5E1] shadow-[0_22px_60px_rgba(234,67,53,0.12)] overflow-hidden flex flex-col justify-between ${
                 isWideProjector
-                  ? 'px-14 py-10 max-w-4xl'
-                  : 'px-6 py-8 sm:px-12 sm:py-10 max-w-3xl'
+                  ? 'min-h-[410px] xl:min-h-[460px]'
+                  : 'min-h-[340px] sm:min-h-[390px]'
               }`}
             >
+              {/* Top Fading Red-to-White Banner */}
               <motion.div
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.48, delay: 0.24, ease: EASE_CINEMATIC }}
-                className={`rounded-2xl bg-[#E8F0FE] text-[#1A73E8] flex items-center justify-center mb-5 shadow-xs ${
-                  isWideProjector ? 'w-20 h-20' : 'w-16 h-16'
-                }`}
-              >
-                <ReelIcon
-                  name={mission.problem.icon}
-                  className={isWideProjector ? 'w-10 h-10' : 'w-8 h-8'}
-                />
-              </motion.div>
-
-              <motion.h2
-                initial={{ opacity: 0, y: 14, filter: 'blur(4px)' }}
-                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-                transition={{ duration: 0.62, delay: 0.48, ease: EASE_CINEMATIC }}
-                className={`font-bold text-[#111827] tracking-tight leading-tight text-balance ${
-                  isWideProjector
-                    ? 'text-4xl xl:text-5xl'
-                    : 'text-2xl sm:text-4xl'
-                }`}
-              >
-                {mission.problem.title}
-              </motion.h2>
-
-              <motion.p
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.65, delay: 0.88, ease: EASE_CINEMATIC }}
-                className={`mt-4 text-[#4B5563] leading-relaxed text-balance ${
-                  isWideProjector
-                    ? 'text-xl xl:text-2xl'
-                    : 'text-base sm:text-xl'
-                }`}
-              >
-                {mission.problem.description}
-              </motion.p>
-            </div>
-
-            <div className="relative z-10 h-1.5 w-full bg-[#F1F5F9]">
-              {autoPlay && (
-                <motion.div
-                  initial={{ scaleX: 0 }}
-                  animate={{ scaleX: 1 }}
-                  transition={{
-                    duration: stageDurationMs / 1000,
-                    ease: 'linear',
-                  }}
-                  style={{ transformOrigin: 'left' }}
-                  className="h-full bg-[#4285F4]"
-                />
-              )}
-            </div>
-          </motion.section>
-        )}
-
-        {stage === 'app' && (
-          <motion.section
-            key={`stage-app-${revealKey}`}
-            aria-label="The App"
-            initial={{ opacity: 0, y: 24, scale: 0.96, filter: 'blur(6px)' }}
-            animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
-            exit={{ opacity: 0, y: -18, scale: 0.96, filter: 'blur(6px)' }}
-            transition={{ duration: 0.58, ease: EASE_CINEMATIC }}
-            className={`relative w-full rounded-3xl bg-white border-2 border-[#10B981]/55 shadow-[0_20px_60px_rgba(16,185,129,0.13)] overflow-hidden flex flex-col justify-between ${
-              isWideProjector
-                ? 'min-h-[380px] xl:min-h-[430px]'
-                : 'min-h-[300px] sm:min-h-[360px]'
-            }`}
-          >
-            <div
-              className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_center,rgba(52,168,83,0.09),transparent_65%)]"
-              aria-hidden="true"
-            />
-
-            <div className="relative z-10 px-6 py-4 sm:px-10 sm:py-5 bg-gradient-to-r from-[#34A853] to-[#0D9488] text-white flex items-center justify-between">
-              <motion.div
-                initial={{ opacity: 0, x: -8 }}
+                initial={{ opacity: 0, x: -24 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.5, delay: 0.16, ease: EASE_CINEMATIC }}
-                className="flex items-center gap-2.5"
-              >
-                <span
-                  className={`px-3 py-1 rounded-lg bg-white/20 font-bold uppercase tracking-wider ${
-                    isWideProjector ? 'text-sm' : 'text-xs'
-                  }`}
-                >
-                  The App
-                </span>
-                <span
-                  className={`font-semibold text-white/95 ${
-                    isWideProjector ? 'text-sm sm:text-base' : 'text-xs sm:text-sm'
-                  }`}
-                >
-                  Aplikasi yang Harus Dibuat
-                </span>
-              </motion.div>
-
-              <span
-                className={`font-bold tabular-nums text-white/85 ${
-                  isWideProjector ? 'text-sm' : 'text-xs'
+                transition={{ duration: 0.55, delay: 0.08, ease: EASE_CINEMATIC }}
+                style={{
+                  background:
+                    'linear-gradient(90deg, #EA4335 0%, #EA4335 42%, rgba(234, 67, 53, 0.45) 68%, rgba(255, 255, 255, 0) 90%)',
+                }}
+                className={`relative z-10 flex items-center justify-between ${
+                  isWideProjector ? 'px-10 py-5' : 'px-6 py-4 sm:px-9 sm:py-5'
                 }`}
               >
-                02 / 03
-              </span>
-            </div>
-
-            <div
-              className={`relative z-10 flex-1 flex flex-col items-center justify-center text-center mx-auto ${
-                isWideProjector
-                  ? 'px-12 py-8 max-w-5xl'
-                  : 'px-6 py-6 sm:px-10 sm:py-7 max-w-4xl'
-              }`}
-            >
-              <motion.div
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.48, delay: 0.24, ease: EASE_CINEMATIC }}
-                className={`rounded-2xl bg-[#E6F4EA] text-[#1E8E3E] flex items-center justify-center mb-3.5 ${
-                  isWideProjector ? 'w-16 h-16' : 'w-14 h-14'
-                }`}
-              >
-                <ReelIcon
-                  name={mission.solution.icon}
-                  className={isWideProjector ? 'w-8 h-8' : 'w-7 h-7'}
-                />
-              </motion.div>
-
-              <motion.h2
-                initial={{ opacity: 0, y: 14, filter: 'blur(4px)' }}
-                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-                transition={{ duration: 0.62, delay: 0.48, ease: EASE_CINEMATIC }}
-                className={`font-bold text-[#111827] tracking-tight leading-tight text-balance ${
-                  isWideProjector
-                    ? 'text-3xl xl:text-4xl'
-                    : 'text-2xl sm:text-3xl'
-                }`}
-              >
-                {mission.solution.title}
-              </motion.h2>
-
-              <motion.p
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.65, delay: 0.88, ease: EASE_CINEMATIC }}
-                className={`mt-3 text-[#374151] leading-relaxed text-balance ${
-                  isWideProjector
-                    ? 'text-lg xl:text-xl max-w-4xl'
-                    : 'text-sm sm:text-lg max-w-3xl'
-                }`}
-              >
-                {mission.solution.contextualHowToBuild}
-              </motion.p>
-
-              <div
-                className={`mt-5 w-full grid grid-cols-1 md:grid-cols-3 text-left ${
-                  isWideProjector ? 'gap-3.5' : 'gap-2.5'
-                }`}
-              >
-                {mission.solution.contextualFeatures.map((feat, idx) => (
-                  <motion.div
-                    key={idx}
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{
-                      duration: 0.52,
-                      delay: 1.35 + idx * 0.34,
-                      ease: EASE_CINEMATIC,
-                    }}
-                    className={`flex items-start gap-2.5 rounded-2xl bg-[#F8FAFC] border border-[#E2E8F0] font-medium text-[#1F2937] leading-snug ${
+                <div className="flex items-center gap-3.5 sm:gap-5">
+                  <h2
+                    className={`font-bold text-white tracking-tight leading-none ${
                       isWideProjector
-                        ? 'px-5 py-3.5 text-sm xl:text-base'
-                        : 'px-4 py-3 text-xs sm:text-sm'
+                        ? 'text-4xl xl:text-5xl'
+                        : 'text-2xl sm:text-4xl'
                     }`}
                   >
-                    <span
-                      className="mt-1.5 w-2 h-2 rounded-full bg-[#34A853] shrink-0"
-                      aria-hidden="true"
+                    The Problem
+                  </h2>
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.72, y: 8 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    transition={{ duration: 0.48, delay: 0.24, ease: EASE_CINEMATIC }}
+                  >
+                    <RevealChevronMark
+                      direction="up"
+                      variant="red"
+                      className={
+                        isWideProjector
+                          ? 'w-12 h-9 sm:w-14 sm:h-10'
+                          : 'w-9 h-7 sm:w-11 sm:h-8'
+                      }
                     />
-                    <span>{feat}</span>
                   </motion.div>
-                ))}
-              </div>
-            </div>
-
-            <div className="relative z-10 h-1.5 w-full bg-[#F1F5F9]">
-              {autoPlay && (
-                <motion.div
-                  initial={{ scaleX: 0 }}
-                  animate={{ scaleX: 1 }}
-                  transition={{
-                    duration: stageDurationMs / 1000,
-                    ease: 'linear',
-                  }}
-                  style={{ transformOrigin: 'left' }}
-                  className="h-full bg-[#34A853]"
-                />
-              )}
-            </div>
-          </motion.section>
-        )}
-
-        {stage === 'user' && (
-          <motion.section
-            key={`stage-user-${revealKey}`}
-            aria-label="The User"
-            initial={{ opacity: 0, y: 24, scale: 0.96, filter: 'blur(6px)' }}
-            animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
-            exit={{ opacity: 0, y: -18, scale: 0.96, filter: 'blur(6px)' }}
-            transition={{ duration: 0.58, ease: EASE_CINEMATIC }}
-            className={`relative w-full rounded-3xl bg-white border-2 border-[#EA4335]/45 shadow-[0_20px_60px_rgba(234,67,53,0.12)] overflow-hidden flex flex-col justify-between ${
-              isWideProjector
-                ? 'min-h-[380px] xl:min-h-[430px]'
-                : 'min-h-[300px] sm:min-h-[360px]'
-            }`}
-          >
-            <div
-              className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(234,67,53,0.09),transparent_60%)]"
-              aria-hidden="true"
-            />
-
-            <div className="relative z-10 px-6 py-4 sm:px-10 sm:py-5 border-b border-[#E2E8F0]/80 flex items-center justify-between">
-              <motion.div
-                initial={{ opacity: 0, x: -8 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.5, delay: 0.16, ease: EASE_CINEMATIC }}
-                className="flex items-center gap-2.5"
-              >
-                <span
-                  className={`px-3 py-1 rounded-lg bg-[#FEE2E2] text-[#EA4335] font-bold uppercase tracking-wider ${
-                    isWideProjector ? 'text-sm' : 'text-xs'
-                  }`}
-                >
-                  The User
-                </span>
-                <span
-                  className={`font-semibold text-[#64748B] ${
-                    isWideProjector ? 'text-sm' : 'text-xs'
-                  }`}
-                >
-                  Siapa Penggunanya
-                </span>
-              </motion.div>
-
-              <span
-                className={`font-bold tabular-nums text-[#94A3B8] ${
-                  isWideProjector ? 'text-sm' : 'text-xs'
-                }`}
-              >
-                03 / 03
-              </span>
-            </div>
-
-            <div
-              className={`relative z-10 flex-1 flex flex-col items-center justify-center text-center mx-auto ${
-                isWideProjector
-                  ? 'px-14 py-10 max-w-4xl'
-                  : 'px-6 py-8 sm:px-12 sm:py-9 max-w-3xl'
-              }`}
-            >
-              <motion.div
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.48, delay: 0.24, ease: EASE_CINEMATIC }}
-                className={`rounded-2xl bg-[#FEE2E2] text-[#EA4335] flex items-center justify-center mb-5 shadow-xs ${
-                  isWideProjector ? 'w-20 h-20' : 'w-16 h-16'
-                }`}
-              >
-                <ReelIcon
-                  name={mission.targetUser.icon}
-                  className={isWideProjector ? 'w-10 h-10' : 'w-8 h-8'}
-                />
-              </motion.div>
-
-              <motion.h2
-                initial={{ opacity: 0, y: 14, filter: 'blur(4px)' }}
-                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-                transition={{ duration: 0.62, delay: 0.48, ease: EASE_CINEMATIC }}
-                className={`font-bold text-[#111827] tracking-tight leading-tight text-balance ${
-                  isWideProjector
-                    ? 'text-4xl xl:text-5xl'
-                    : 'text-2xl sm:text-4xl'
-                }`}
-              >
-                {mission.targetUser.title}
-              </motion.h2>
-
-              <motion.p
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.65, delay: 0.88, ease: EASE_CINEMATIC }}
-                className={`mt-4 text-[#4B5563] leading-relaxed text-balance ${
-                  isWideProjector
-                    ? 'text-xl xl:text-2xl'
-                    : 'text-base sm:text-xl'
-                }`}
-              >
-                {mission.targetUser.contextualDescription}
-              </motion.p>
-
-              <motion.div
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 1.25, ease: EASE_CINEMATIC }}
-                className={`mt-5 inline-flex items-center gap-2 rounded-xl bg-[#FEF3C7] border border-[#FDE68A] font-bold text-[#92400E] ${
-                  isWideProjector ? 'px-4 py-2 text-sm' : 'px-3.5 py-1.5 text-xs'
-                }`}
-              >
-                <ReelIcon name={mission.device.icon} className="w-4 h-4 text-[#B45309]" />
-                <span>
-                  Perangkat: {mission.device.title} · {mission.device.badgeLabel}
-                </span>
-              </motion.div>
-            </div>
-
-            <div className="relative z-10 h-1.5 w-full bg-[#F1F5F9]">
-              {autoPlay && (
-                <motion.div
-                  initial={{ scaleX: 0 }}
-                  animate={{ scaleX: 1 }}
-                  transition={{
-                    duration: stageDurationMs / 1000,
-                    ease: 'linear',
-                  }}
-                  style={{ transformOrigin: 'left' }}
-                  className="h-full bg-[#EA4335]"
-                />
-              )}
-            </div>
-          </motion.section>
-        )}
-
-        {stage === 'brief' && (
-          /* Direct Final QR Handover · Mission Brief Section */
-          <motion.section
-            key={`stage-brief-${revealKey}`}
-            aria-label="QR Handover Mission Brief"
-            initial={{ opacity: 0, y: 18, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -12 }}
-            transition={{ duration: 0.48, ease: EASE_CINEMATIC }}
-            className="w-full max-w-4xl mx-auto bg-white rounded-3xl border border-[#CBD5E1] shadow-[0_18px_48px_rgba(15,23,42,0.08)] overflow-hidden"
-          >
-            {/* Card Header */}
-            <div
-              className={`border-b border-[#F1F3F4] flex items-center justify-between gap-4 ${
-                isWideProjector ? 'px-7 py-3.5' : 'px-6 py-3'
-              }`}
-            >
-              <div>
-                <div className="text-[11px] font-bold text-[#1A73E8] uppercase tracking-wider">
-                  QR HANDOVER · MISSION BRIEF
                 </div>
-                <h2
-                  className={`font-bold text-[#111827] tabular-nums ${
-                    isWideProjector ? 'text-2xl' : 'text-lg sm:text-xl'
+
+                <button
+                  type="button"
+                  onClick={handleAdvance}
+                  title="Lanjut ke tahap berikutnya"
+                  className="rounded-xl px-3 py-1.5 text-xs font-bold text-[#64748B] hover:text-[#111827] hover:bg-[#F1F5F9] inline-flex items-center gap-1 transition-colors cursor-pointer"
+                >
+                  <span>Lanjut</span>
+                  <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+                </button>
+              </motion.div>
+
+              {/* Spacious White Reveal Stage */}
+              <div
+                className={`relative z-10 flex-1 flex flex-col items-center justify-center text-center mx-auto ${
+                  isWideProjector
+                    ? 'px-14 py-9 max-w-4xl'
+                    : 'px-6 py-7 sm:px-12 sm:py-9 max-w-3xl'
+                }`}
+              >
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.78 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.48, delay: 0.28, ease: EASE_CINEMATIC }}
+                  className={`rounded-2xl bg-[#FEE2E2] text-[#EA4335] flex items-center justify-center mb-5 shadow-xs ${
+                    isWideProjector ? 'w-20 h-20' : 'w-16 h-16'
                   }`}
                 >
-                  Peserta #{participantNumber}
-                  {displayName ? ` — ${displayName}` : ''}
-                </h2>
-              </div>
-            </div>
+                  <ReelIcon
+                    name={mission.problem.icon}
+                    className={isWideProjector ? 'w-10 h-10' : 'w-8 h-8'}
+                  />
+                </motion.div>
 
-            {/* Body: QR on Left, Concise Summary + Actions on Right */}
-            <div
-              className={`grid grid-cols-1 items-center ${
+                <motion.h3
+                  initial={{ opacity: 0, y: 16, filter: 'blur(4px)' }}
+                  animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                  transition={{ duration: 0.6, delay: 0.48, ease: EASE_CINEMATIC }}
+                  className={`font-bold text-[#111827] tracking-tight leading-tight text-balance ${
+                    isWideProjector
+                      ? 'text-4xl xl:text-5xl'
+                      : 'text-2xl sm:text-4xl'
+                  }`}
+                >
+                  {mission.problem.title}
+                </motion.h3>
+
+                <motion.p
+                  initial={{ opacity: 0, y: 14 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.62, delay: 0.88, ease: EASE_CINEMATIC }}
+                  className={`mt-4 text-[#4B5563] leading-relaxed text-balance ${
+                    isWideProjector
+                      ? 'text-xl xl:text-2xl'
+                      : 'text-base sm:text-xl'
+                  }`}
+                >
+                  {mission.problem.description}
+                </motion.p>
+              </div>
+
+              <div className="relative z-10 h-1.5 w-full bg-[#F1F5F9]">
+                {autoPlay && (
+                  <motion.div
+                    initial={{ scaleX: 0 }}
+                    animate={{ scaleX: 1 }}
+                    transition={{
+                      duration: stageDurationMs / 1000,
+                      ease: 'linear',
+                    }}
+                    style={{ transformOrigin: 'left' }}
+                    className="h-full bg-[#EA4335]"
+                  />
+                )}
+              </div>
+            </motion.section>
+          )}
+
+          {stage === 'app' && (
+            <motion.section
+              key={`stage-app-${revealKey}`}
+              custom={transitionDir}
+              variants={stageVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ duration: 0.54, ease: EASE_CINEMATIC }}
+              aria-label="The App"
+              className={`relative w-full rounded-3xl bg-white border border-[#CBD5E1] shadow-[0_22px_60px_rgba(52,168,83,0.13)] overflow-hidden flex flex-col justify-between ${
                 isWideProjector
-                  ? 'md:grid-cols-[260px_1fr] gap-6 px-7 py-4'
-                  : 'md:grid-cols-[232px_1fr] gap-5 px-6 py-4'
+                  ? 'min-h-[410px] xl:min-h-[460px]'
+                  : 'min-h-[340px] sm:min-h-[390px]'
               }`}
             >
-              {/* Left QR Column */}
-              <div className="flex flex-col items-center">
-                <div className="p-2.5 bg-white rounded-2xl border border-[#E2E8F0] shadow-xs">
-                  {qrDataUrl ? (
-                    <img
-                      src={qrDataUrl}
-                      alt={`QR Code Mission Brief Peserta #${participantNumber}`}
-                      className={`block ${
-                        isWideProjector ? 'w-52 h-52' : 'w-44 h-44 sm:w-48 sm:h-48'
-                      }`}
-                      referrerPolicy="no-referrer"
+              {/* Top Fading Green-to-White Banner */}
+              <motion.div
+                initial={{ opacity: 0, x: -24 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.55, delay: 0.08, ease: EASE_CINEMATIC }}
+                style={{
+                  background:
+                    'linear-gradient(90deg, #34A853 0%, #34A853 42%, rgba(52, 168, 83, 0.45) 68%, rgba(255, 255, 255, 0) 90%)',
+                }}
+                className={`relative z-10 flex items-center justify-between ${
+                  isWideProjector ? 'px-10 py-5' : 'px-6 py-4 sm:px-9 sm:py-5'
+                }`}
+              >
+                <div className="flex items-center gap-3.5 sm:gap-5">
+                  <h2
+                    className={`font-bold text-white tracking-tight leading-none ${
+                      isWideProjector
+                        ? 'text-4xl xl:text-5xl'
+                        : 'text-2xl sm:text-4xl'
+                    }`}
+                  >
+                    The App
+                  </h2>
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.72, y: -8 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    transition={{ duration: 0.48, delay: 0.24, ease: EASE_CINEMATIC }}
+                  >
+                    <RevealChevronMark
+                      direction="down"
+                      variant="green"
+                      className={
+                        isWideProjector
+                          ? 'w-12 h-9 sm:w-14 sm:h-10'
+                          : 'w-9 h-7 sm:w-11 sm:h-8'
+                      }
                     />
-                  ) : (
-                    <div
-                      className={`bg-[#F8F9FA] rounded-xl flex items-center justify-center text-xs text-[#5F6368] ${
-                        isWideProjector ? 'w-52 h-52' : 'w-44 h-44 sm:w-48 sm:h-48'
+                  </motion.div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleAdvance}
+                  title="Lanjut ke tahap berikutnya"
+                  className="rounded-xl px-3 py-1.5 text-xs font-bold text-[#64748B] hover:text-[#111827] hover:bg-[#F1F5F9] inline-flex items-center gap-1 transition-colors cursor-pointer"
+                >
+                  <span>Lanjut</span>
+                  <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+                </button>
+              </motion.div>
+
+              {/* Spacious White Reveal Stage */}
+              <div
+                className={`relative z-10 flex-1 flex flex-col items-center justify-center text-center mx-auto ${
+                  isWideProjector
+                    ? 'px-12 py-7 max-w-5xl'
+                    : 'px-6 py-6 sm:px-10 sm:py-7 max-w-4xl'
+                }`}
+              >
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.78 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.48, delay: 0.28, ease: EASE_CINEMATIC }}
+                  className={`rounded-2xl bg-[#E6F4EA] text-[#1E8E3E] flex items-center justify-center mb-3.5 shadow-xs ${
+                    isWideProjector ? 'w-16 h-16' : 'w-14 h-14'
+                  }`}
+                >
+                  <ReelIcon
+                    name={mission.solution.icon}
+                    className={isWideProjector ? 'w-8 h-8' : 'w-7 h-7'}
+                  />
+                </motion.div>
+
+                <motion.h3
+                  initial={{ opacity: 0, y: 16, filter: 'blur(4px)' }}
+                  animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                  transition={{ duration: 0.6, delay: 0.48, ease: EASE_CINEMATIC }}
+                  className={`font-bold text-[#111827] tracking-tight leading-tight text-balance ${
+                    isWideProjector
+                      ? 'text-3xl xl:text-4xl'
+                      : 'text-2xl sm:text-3xl'
+                  }`}
+                >
+                  {mission.solution.title}
+                </motion.h3>
+
+                <motion.p
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.62, delay: 0.88, ease: EASE_CINEMATIC }}
+                  className={`mt-3 text-[#374151] leading-relaxed text-balance ${
+                    isWideProjector
+                      ? 'text-lg xl:text-xl max-w-4xl'
+                      : 'text-sm sm:text-lg max-w-3xl'
+                  }`}
+                >
+                  {mission.solution.contextualHowToBuild}
+                </motion.p>
+
+                <div
+                  className={`mt-5 w-full grid grid-cols-1 md:grid-cols-3 text-left ${
+                    isWideProjector ? 'gap-3.5' : 'gap-2.5'
+                  }`}
+                >
+                  {mission.solution.contextualFeatures.map((feat, idx) => (
+                    <motion.div
+                      key={idx}
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{
+                        duration: 0.52,
+                        delay: 1.3 + idx * 0.32,
+                        ease: EASE_CINEMATIC,
+                      }}
+                      className={`flex items-start gap-2.5 rounded-2xl bg-[#F8FAFC] border border-[#E2E8F0] font-medium text-[#1F2937] leading-snug ${
+                        isWideProjector
+                          ? 'px-5 py-3.5 text-sm xl:text-base'
+                          : 'px-4 py-3 text-xs sm:text-sm'
                       }`}
                     >
-                      Membuat QR Code...
-                    </div>
-                  )}
+                      <span
+                        className="mt-1.5 w-2 h-2 rounded-full bg-[#34A853] shrink-0"
+                        aria-hidden="true"
+                      />
+                      <span>{feat}</span>
+                    </motion.div>
+                  ))}
                 </div>
-                <p
-                  className={`mt-2 text-center text-[#5F6368] leading-snug max-w-[24ch] ${
-                    isWideProjector ? 'text-xs' : 'text-[11px]'
-                  }`}
-                >
-                  Scan dari kamera HP untuk membuka kartu misi
-                </p>
               </div>
 
-              {/* Right Summary + Action Buttons */}
-              <div className="space-y-3 min-w-0">
+              <div className="relative z-10 h-1.5 w-full bg-[#F1F5F9]">
+                {autoPlay && (
+                  <motion.div
+                    initial={{ scaleX: 0 }}
+                    animate={{ scaleX: 1 }}
+                    transition={{
+                      duration: stageDurationMs / 1000,
+                      ease: 'linear',
+                    }}
+                    style={{ transformOrigin: 'left' }}
+                    className="h-full bg-[#34A853]"
+                  />
+                )}
+              </div>
+            </motion.section>
+          )}
+
+          {stage === 'user' && (
+            <motion.section
+              key={`stage-user-${revealKey}`}
+              custom={transitionDir}
+              variants={stageVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ duration: 0.54, ease: EASE_CINEMATIC }}
+              aria-label="The User"
+              style={{
+                background:
+                  'linear-gradient(180deg, #F8FAFF 0%, #DBEAFE 32%, #3B82F6 76%, #1A73E8 100%)',
+              }}
+              className={`relative w-full rounded-3xl border border-[#BFDBFE] shadow-[0_24px_64px_rgba(26,115,232,0.22)] overflow-hidden flex flex-col justify-between ${
+                isWideProjector
+                  ? 'min-h-[410px] xl:min-h-[460px]'
+                  : 'min-h-[340px] sm:min-h-[390px]'
+              }`}
+            >
+              {/* Centered Floating Card with Overlapping "The User" Pill + Bottom-Right Mobile/Desktop Indicator */}
+              <div
+                className={`relative z-10 flex-1 flex items-center justify-center ${
+                  isWideProjector
+                    ? 'px-12 pt-11 pb-7'
+                    : 'px-5 sm:px-10 pt-10 pb-6'
+                }`}
+              >
+                <motion.div
+                  initial={{ opacity: 0, y: 20, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{ duration: 0.52, delay: 0.12, ease: EASE_CINEMATIC }}
+                  className={`relative w-full rounded-[28px] bg-white/98 border-2 border-white shadow-[0_20px_54px_rgba(15,23,42,0.16)] flex flex-col items-center justify-center text-center ${
+                    isWideProjector
+                      ? 'max-w-4xl min-h-[295px] px-14 pt-12 pb-14'
+                      : 'max-w-3xl min-h-[245px] sm:min-h-[270px] px-6 sm:px-12 pt-11 pb-14'
+                  }`}
+                >
+                  {/* Overlapping Top-Center Pill Header */}
+                  <motion.div
+                    initial={{ opacity: 0, y: -12, scale: 0.9 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    transition={{ duration: 0.48, delay: 0.2, ease: EASE_CINEMATIC }}
+                    className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2"
+                  >
+                    <span
+                      className={`inline-flex items-center justify-center rounded-full bg-[#111827] text-white border-2 border-white shadow-[0_8px_22px_rgba(15,23,42,0.24)] font-bold tracking-tight whitespace-nowrap ${
+                        isWideProjector
+                          ? 'px-9 py-2.5 text-2xl'
+                          : 'px-7 py-2 text-lg sm:text-xl'
+                      }`}
+                    >
+                      The User
+                    </span>
+                  </motion.div>
+
+                  {/* Top-right subtle advance */}
+                  <button
+                    type="button"
+                    onClick={handleAdvance}
+                    title="Buka Kartu Misi"
+                    className="absolute top-3.5 right-4 rounded-xl px-3 py-1 text-xs font-bold text-[#64748B] hover:text-[#111827] hover:bg-[#F1F5F9] inline-flex items-center gap-1 transition-colors cursor-pointer"
+                  >
+                    <span>Lanjut</span>
+                    <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+                  </button>
+
+                  {/* Target User Icon + Title + Description */}
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.78 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.48, delay: 0.3, ease: EASE_CINEMATIC }}
+                    className={`rounded-2xl bg-[#E8F0FE] text-[#1A73E8] flex items-center justify-center mb-4 shadow-xs ${
+                      isWideProjector ? 'w-16 h-16' : 'w-14 h-14'
+                    }`}
+                  >
+                    <ReelIcon
+                      name={mission.targetUser.icon}
+                      className={isWideProjector ? 'w-8 h-8' : 'w-7 h-7'}
+                    />
+                  </motion.div>
+
+                  <motion.h3
+                    initial={{ opacity: 0, y: 14, filter: 'blur(4px)' }}
+                    animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                    transition={{ duration: 0.58, delay: 0.48, ease: EASE_CINEMATIC }}
+                    className={`font-bold text-[#111827] tracking-tight leading-tight text-balance ${
+                      isWideProjector
+                        ? 'text-3xl xl:text-4xl'
+                        : 'text-2xl sm:text-3xl'
+                    }`}
+                  >
+                    {mission.targetUser.title}
+                  </motion.h3>
+
+                  <motion.p
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6, delay: 0.84, ease: EASE_CINEMATIC }}
+                    className={`mt-3 text-[#4B5563] leading-relaxed text-balance max-w-2xl ${
+                      isWideProjector
+                        ? 'text-lg xl:text-xl'
+                        : 'text-sm sm:text-lg'
+                    }`}
+                  >
+                    {mission.targetUser.contextualDescription}
+                  </motion.p>
+
+                  {/* Bottom-Right Mobile / Desktop Indicator */}
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9, y: 6 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    transition={{ duration: 0.45, delay: 1.12, ease: EASE_CINEMATIC }}
+                    aria-label={`Target perangkat: ${deviceIndicator.label}`}
+                    className={`absolute bottom-3.5 right-4 sm:bottom-4 sm:right-5 inline-flex items-center gap-2 rounded-xl bg-[#F8FAFC] border border-[#CBD5E1] text-[#111827] font-bold shadow-xs ${
+                      isWideProjector ? 'px-4 py-2 text-sm' : 'px-3.5 py-1.5 text-xs sm:text-sm'
+                    }`}
+                  >
+                    <DeviceIndicatorIcon
+                      className="w-4 h-4 text-[#1A73E8] shrink-0"
+                      aria-hidden="true"
+                    />
+                    <span>{deviceIndicator.label}</span>
+                  </motion.div>
+                </motion.div>
+              </div>
+
+              <div className="relative z-10 h-1.5 w-full bg-white/30">
+                {autoPlay && (
+                  <motion.div
+                    initial={{ scaleX: 0 }}
+                    animate={{ scaleX: 1 }}
+                    transition={{
+                      duration: stageDurationMs / 1000,
+                      ease: 'linear',
+                    }}
+                    style={{ transformOrigin: 'left' }}
+                    className="h-full bg-white"
+                  />
+                )}
+              </div>
+            </motion.section>
+          )}
+
+          {stage === 'brief' && (
+            /* Direct Final Kartu Misi (No Mission Brief wrapper, No Download PDF/Open Tab, No Scan QR text) */
+            <motion.section
+              key={`stage-brief-${revealKey}`}
+              custom={transitionDir}
+              variants={stageVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ duration: 0.5, ease: EASE_CINEMATIC }}
+              aria-label="Kartu Misi"
+              className="w-full max-w-5xl mx-auto bg-white rounded-3xl border border-[#CBD5E1] shadow-[0_18px_48px_rgba(15,23,42,0.08)] overflow-hidden"
+            >
+              {/* Card Header */}
+              <div
+                className={`border-b border-[#F1F3F4] flex items-center justify-between gap-4 ${
+                  isWideProjector ? 'px-7 py-3.5' : 'px-6 py-3'
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="px-2.5 py-1 rounded-lg bg-[#E8F0FE] text-[#1A73E8] text-xs font-bold uppercase tracking-wider shrink-0">
+                    Kartu Misi
+                  </span>
+                  <h2
+                    className={`font-bold text-[#111827] truncate ${
+                      isWideProjector ? 'text-2xl' : 'text-lg sm:text-xl'
+                    }`}
+                  >
+                    {displayName || `Peserta #${participantNumber}`}
+                  </h2>
+                </div>
+
+                <span className="text-xs font-bold text-[#64748B] tabular-nums shrink-0">
+                  Peserta #{participantNumber}
+                </span>
+              </div>
+
+              {/* Body: QR on Left (Clean, No Scan Text) + Full Kartu Misi on Right */}
+              <div
+                className={`grid grid-cols-1 items-center ${
+                  isWideProjector
+                    ? 'md:grid-cols-[240px_1fr] gap-6 px-7 py-4'
+                    : 'md:grid-cols-[216px_1fr] gap-5 px-6 py-4'
+                }`}
+              >
+                {/* Left QR Column (Razor-Sharp Vector SVG, Tap to Enlarge) */}
+                <div className="flex flex-col items-center justify-center">
+                  <button
+                    type="button"
+                    onClick={() => setIsQrZoomed(true)}
+                    aria-label={`Perbesar QR Code Kartu Misi ${displayName || `Peserta #${participantNumber}`}`}
+                    className="p-2.5 bg-white rounded-2xl border border-[#E2E8F0] shadow-xs hover:border-[#1A73E8] hover:shadow-md transition-all cursor-zoom-in"
+                  >
+                    <QrCodeSvg
+                      url={briefUrl}
+                      label={`QR Code Kartu Misi ${displayName || `Peserta #${participantNumber}`}`}
+                      className={
+                        isWideProjector ? 'w-52 h-52' : 'w-44 h-44 sm:w-48 sm:h-48'
+                      }
+                    />
+                  </button>
+                </div>
+
+                {/* Right Kartu Misi Content */}
                 <div
-                  className={`rounded-2xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-2 ${
+                  className={`rounded-2xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-2.5 min-w-0 ${
                     isWideProjector ? 'p-4' : 'p-3.5'
                   }`}
                 >
+                  {/* THE APP */}
                   <div>
                     <div className="text-[10px] font-bold text-[#1E8E3E] uppercase tracking-wider">
                       THE APP · APLIKASI YANG HARUS DIBUAT
                     </div>
                     <div
                       className={`font-bold text-[#111827] flex items-center gap-1.5 mt-0.5 ${
-                        isWideProjector ? 'text-base' : 'text-sm sm:text-[15px]'
+                        isWideProjector ? 'text-lg' : 'text-sm sm:text-base'
                       }`}
                     >
                       <ReelIcon
@@ -692,19 +860,21 @@ export function MissionResultShowcase({
                     </div>
                     <p
                       className={`text-[#374151] mt-1 leading-snug ${
-                        isWideProjector ? 'text-[13px]' : 'text-xs'
+                        isWideProjector ? 'text-sm' : 'text-xs sm:text-[13px]'
                       }`}
                     >
                       {mission.solution.contextualHowToBuild}
                     </p>
-                    <ul className="mt-1.5 flex flex-wrap gap-1.5">
+                    <ul className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-1.5">
                       {mission.solution.contextualFeatures.map((feat, idx) => (
                         <li
                           key={idx}
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-white border border-[#E2E8F0] px-2.5 py-1 text-[11px] font-medium text-[#1F2937]"
+                          className={`flex items-start gap-1.5 rounded-xl bg-white border border-[#E2E8F0] px-2.5 py-1.5 font-medium text-[#1F2937] leading-snug ${
+                            isWideProjector ? 'text-xs' : 'text-[11px]'
+                          }`}
                         >
                           <span
-                            className="w-1.5 h-1.5 rounded-full bg-[#34A853] shrink-0"
+                            className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[#34A853] shrink-0"
                             aria-hidden="true"
                           />
                           <span>{feat}</span>
@@ -715,133 +885,138 @@ export function MissionResultShowcase({
 
                   <div className="h-px bg-[#E2E8F0]" />
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {/* THE PROBLEM & THE USER */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <div className="text-[10px] font-bold text-[#4285F4] uppercase tracking-wider">
+                      <div className="text-[10px] font-bold text-[#EA4335] uppercase tracking-wider">
                         THE PROBLEM
                       </div>
                       <div
-                        className={`font-semibold text-[#111827] flex items-center gap-1.5 mt-0.5 ${
+                        className={`font-bold text-[#111827] flex items-center gap-1.5 mt-0.5 ${
                           isWideProjector ? 'text-sm' : 'text-xs sm:text-[13px]'
                         }`}
                       >
                         <ReelIcon
                           name={mission.problem.icon}
-                          className="w-3.5 h-3.5 text-[#4285F4] shrink-0"
+                          className="w-3.5 h-3.5 text-[#EA4335] shrink-0"
                         />
                         <span className="leading-snug">{mission.problem.title}</span>
                       </div>
+                      <p className="mt-0.5 text-[11px] sm:text-xs text-[#4B5563] leading-snug">
+                        {mission.problem.description}
+                      </p>
                     </div>
 
                     <div>
-                      <div className="text-[10px] font-bold text-[#EA4335] uppercase tracking-wider">
+                      <div className="text-[10px] font-bold text-[#4285F4] uppercase tracking-wider">
                         THE USER
                       </div>
                       <div
-                        className={`font-semibold text-[#111827] flex items-center gap-1.5 mt-0.5 ${
+                        className={`font-bold text-[#111827] flex items-center gap-1.5 mt-0.5 ${
                           isWideProjector ? 'text-sm' : 'text-xs sm:text-[13px]'
                         }`}
                       >
                         <ReelIcon
                           name={mission.targetUser.icon}
-                          className="w-3.5 h-3.5 text-[#EA4335] shrink-0"
+                          className="w-3.5 h-3.5 text-[#4285F4] shrink-0"
                         />
                         <span className="leading-snug">{mission.targetUser.title}</span>
                       </div>
+                      <p className="mt-0.5 text-[11px] sm:text-xs text-[#4B5563] leading-snug">
+                        {mission.targetUser.contextualDescription}
+                      </p>
                     </div>
                   </div>
 
                   <div className="h-px bg-[#E2E8F0]" />
 
-                  <div>
+                  {/* PERANGKAT */}
+                  <div className="flex items-center justify-between gap-2">
                     <div className="text-[10px] font-bold text-[#D97706] uppercase tracking-wider">
                       PERANGKAT
                     </div>
                     <div
-                      className={`font-semibold text-[#111827] flex items-center gap-1.5 mt-0.5 ${
+                      className={`font-semibold text-[#111827] flex items-center gap-1.5 ${
                         isWideProjector ? 'text-sm' : 'text-xs sm:text-[13px]'
                       }`}
                     >
-                      <ReelIcon
-                        name={mission.device.icon}
+                      <DeviceIndicatorIcon
                         className="w-3.5 h-3.5 text-[#D97706] shrink-0"
+                        aria-hidden="true"
                       />
                       <span>
-                        {mission.device.title} · {mission.device.badgeLabel}
+                        {deviceIndicator.label} · {mission.device.title}
                       </span>
                     </div>
                   </div>
                 </div>
-
-                {/* Inline Action Buttons */}
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      onOpenPreview({
-                        participantNumber,
-                        participantName: displayName || undefined,
-                        problemId: mission.problem.id,
-                        userId: mission.targetUser.id,
-                        solutionId: mission.solution.id,
-                        deviceId: mission.device.id,
-                        mission,
-                      })
-                    }
-                    className="min-h-[38px] px-4 py-1.5 rounded-xl bg-[#E8F0FE] hover:bg-[#D2E3FC] text-[#1967D2] text-xs font-semibold inline-flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-                  >
-                    <Eye className="w-4 h-4" aria-hidden="true" />
-                    <span>Lihat Kartu Misi</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={onDownloadPdf}
-                    className="min-h-[38px] px-4 py-1.5 rounded-xl border border-[#CBD5E1] bg-white hover:bg-[#F8FAFC] text-[#111827] text-xs font-semibold inline-flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-                  >
-                    <Download className="w-4 h-4" aria-hidden="true" />
-                    <span>Download PDF</span>
-                  </button>
-
-                  <a
-                    href={briefUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="min-h-[38px] px-3 py-1.5 rounded-xl text-[#5F6368] hover:text-[#111827] hover:bg-[#F1F5F9] text-xs font-medium inline-flex items-center gap-1 transition-colors whitespace-nowrap shrink-0"
-                  >
-                    <span>Buka Tab Baru</span>
-                    <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
-                  </a>
-                </div>
               </div>
-            </div>
 
-            {/* Footer Bar matching Final Photo Layout */}
-            <div
-              className={`bg-[#F8FAFC] border-t border-[#E2E8F0] flex flex-wrap items-center justify-between gap-3 ${
-                isWideProjector ? 'px-7 py-3' : 'px-6 py-2.5'
-              }`}
-            >
-              <span className="text-xs text-[#5F6368]">
-                Scan QR dari HP untuk melihat ide aplikasi yang harus dibuat.
-              </span>
-
-              <button
-                type="button"
-                onClick={onConfirmAndAdvance}
-                className={`rounded-xl bg-[#1A73E8] hover:bg-[#1557B0] text-white font-bold inline-flex items-center gap-2 transition-colors whitespace-nowrap cursor-pointer shadow-[0_6px_18px_rgba(26,115,232,0.22)] ${
-                  isWideProjector
-                    ? 'min-h-[42px] px-6 py-2 text-sm'
-                    : 'min-h-[38px] px-5 py-1.5 text-xs sm:text-sm'
+              {/* Clean Footer Bar (No Scan QR text) */}
+              <div
+                className={`bg-[#F8FAFC] border-t border-[#E2E8F0] flex items-center justify-end ${
+                  isWideProjector ? 'px-7 py-3' : 'px-6 py-2.5'
                 }`}
               >
-                <span>{advanceActionLabel}</span>
-                <ArrowRight className="w-4 h-4" aria-hidden="true" />
-              </button>
+                <button
+                  type="button"
+                  onClick={onConfirmAndAdvance}
+                  className={`rounded-xl bg-[#1A73E8] hover:bg-[#1557B0] text-white font-bold inline-flex items-center gap-2 transition-colors whitespace-nowrap cursor-pointer shadow-[0_6px_18px_rgba(26,115,232,0.22)] ${
+                    isWideProjector
+                      ? 'min-h-[44px] px-6 py-2 text-sm'
+                      : 'min-h-[40px] px-5 py-1.5 text-xs sm:text-sm'
+                  }`}
+                >
+                  <span>{advanceActionLabel}</span>
+                  <ArrowRight className="w-4 h-4" aria-hidden="true" />
+                </button>
+              </div>
+            </motion.section>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Enlarged High-Contrast QR Overlay for Stage / Back-Row Scanning */}
+      {isQrZoomed && stage === 'brief' && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0F172A]/45 backdrop-blur-xs"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`QR Code ${displayName || `Peserta #${participantNumber}`}`}
+          onClick={() => setIsQrZoomed(false)}
+        >
+          <div
+            className="relative bg-white rounded-3xl border border-[#CBD5E1] p-6 sm:p-8 shadow-[0_24px_64px_rgba(15,23,42,0.28)] flex flex-col items-center gap-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setIsQrZoomed(false)}
+              aria-label="Tutup perbesaran QR"
+              className="absolute top-3.5 right-3.5 w-9 h-9 rounded-full hover:bg-[#F1F5F9] text-[#64748B] hover:text-[#111827] inline-flex items-center justify-center cursor-pointer transition-colors"
+            >
+              <X className="w-5 h-5" aria-hidden="true" />
+            </button>
+
+            <div className="text-center pr-6 pl-6">
+              <span className="px-2.5 py-0.5 rounded-lg bg-[#E8F0FE] text-[#1A73E8] text-xs font-bold uppercase tracking-wider">
+                Kartu Misi · #{participantNumber}
+              </span>
+              <h3 className="mt-1.5 text-xl sm:text-2xl font-bold text-[#111827]">
+                {displayName || `Peserta #${participantNumber}`}
+              </h3>
             </div>
-          </motion.section>
-        )}
-      </AnimatePresence>
+
+            <div className="p-3 bg-white rounded-2xl border border-[#E2E8F0]">
+              <QrCodeSvg
+                url={briefUrl}
+                label={`QR Code Besar ${displayName || `Peserta #${participantNumber}`}`}
+                className="w-64 h-64 sm:w-80 sm:h-80"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

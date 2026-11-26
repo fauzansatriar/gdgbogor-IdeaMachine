@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import { ArrowRight, Download, Eye, ExternalLink, X } from 'lucide-react';
 import {
   ParticipantSlot,
@@ -7,8 +6,8 @@ import {
 import {
   MissionBriefPayload,
   buildMissionBriefUrl,
-  generateQrDataUrl,
 } from '../utils/briefCodec';
+import { QrCodeSvg } from './QrCodeSvg';
 import { ReelIcon } from './ReelIcon';
 
 interface QrHandoverModalProps {
@@ -28,27 +27,6 @@ export function QrHandoverModal({
   onDownloadPdf,
   onOpenPreview,
 }: QrHandoverModalProps) {
-  const [qrDataUrl, setQrDataUrl] = useState<string>('');
-
-  useEffect(() => {
-    if (!slot || !slot.challenge) {
-      setQrDataUrl('');
-      return;
-    }
-    let active = true;
-    const url = buildMissionBriefUrl(slot.number, slot.challenge, slot.name);
-    generateQrDataUrl(url, 320)
-      .then((dataUrl) => {
-        if (active) setQrDataUrl(dataUrl);
-      })
-      .catch(() => {
-        if (active) setQrDataUrl('');
-      });
-    return () => {
-      active = false;
-    };
-  }, [slot]);
-
   if (!slot || !slot.challenge) return null;
 
   const mission = resolveChallengeMission(slot.challenge);
@@ -69,7 +47,7 @@ export function QrHandoverModal({
         <div className="px-6 py-4 border-b border-[#F1F3F4] flex items-center justify-between gap-4">
           <div>
             <div className="text-xs font-semibold text-[#1A73E8] uppercase tracking-wide">
-              QR Handover · Mission Brief
+              QR Handover · Kartu Misi
             </div>
             <h2
               id="qr-modal-title"
@@ -93,22 +71,12 @@ export function QrHandoverModal({
         <div className="p-6 grid grid-cols-1 md:grid-cols-[240px_1fr] gap-6 items-center">
           <div className="flex flex-col items-center">
             <div className="p-3 bg-white rounded-2xl border border-[#E2E8F0]">
-              {qrDataUrl ? (
-                <img
-                  src={qrDataUrl}
-                  alt={`QR Code Mission Brief Peserta #${slot.number}`}
-                  className="w-52 h-52 block"
-                  referrerPolicy="no-referrer"
-                />
-              ) : (
-                <div className="w-52 h-52 bg-[#F8F9FA] rounded-xl flex items-center justify-center text-xs text-[#5F6368]">
-                  Membuat QR Code...
-                </div>
-              )}
+              <QrCodeSvg
+                url={briefUrl}
+                label={`QR Code Kartu Misi Peserta #${slot.number}`}
+                className="w-52 h-52"
+              />
             </div>
-            <p className="mt-2.5 text-xs text-center text-[#5F6368]">
-              Scan dari kamera HP untuk membuka kartu misi
-            </p>
           </div>
 
           <div className="space-y-3 text-sm">
