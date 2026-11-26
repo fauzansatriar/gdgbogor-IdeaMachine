@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
+  ArrowRight,
   LogOut,
   Plus,
   Search,
@@ -8,12 +9,9 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import {
-  CategoryKey,
   CategoryPools,
-  DeviceTargetItem,
-  ProblemItem,
-  SolutionItem,
-  TargetUserItem,
+  DEVICE_TARGETS,
+  TaskBundle,
 } from '../data/pools';
 
 interface AdminDashboardViewProps {
@@ -33,47 +31,44 @@ interface AdminStatusResponse {
   usernameHint: string;
 }
 
-const CATEGORY_META: Record<
-  CategoryKey,
+type StepIndex = 0 | 1 | 2 | 3;
+
+const STEPS: Array<{
+  index: StepIndex;
+  code: string;
+  title: string;
+  accent: string;
+  softBg: string;
+}> = [
   {
-    label: string;
-    subtitle: string;
-    accent: string;
-    softBg: string;
-    defaultIcon: string;
-  }
-> = {
-  problems: {
-    label: 'The Problem',
-    subtitle: 'Masalah nyata di sekitar',
+    index: 0,
+    code: '01',
+    title: 'The Problem',
     accent: '#EA4335',
     softBg: '#FEE2E2',
-    defaultIcon: 'home',
   },
-  solutions: {
-    label: 'The App',
-    subtitle: 'Ide aplikasi & fitur AI',
+  {
+    index: 1,
+    code: '02',
+    title: 'The App',
     accent: '#1E8E3E',
     softBg: '#E6F4EA',
-    defaultIcon: 'camera',
   },
-  targetUsers: {
-    label: 'The User',
-    subtitle: 'Target pengguna aplikasi',
+  {
+    index: 2,
+    code: '03',
+    title: 'The User',
     accent: '#1A73E8',
     softBg: '#E8F0FE',
-    defaultIcon: 'users',
   },
-  deviceTargets: {
-    label: 'The Device',
-    subtitle: 'Perangkat & ukuran layar',
+  {
+    index: 3,
+    code: '04',
+    title: 'The Device',
     accent: '#D97706',
     softBg: '#FEF3C7',
-    defaultIcon: 'smartphone',
   },
-};
-
-const CATEGORY_ORDER: CategoryKey[] = ['problems', 'solutions', 'targetUsers', 'deviceTargets'];
+];
 
 export function AdminDashboardView({
   categories,
@@ -96,15 +91,25 @@ export function AdminDashboardView({
   const [authSubmitting, setAuthSubmitting] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  const [activeCategory, setActiveCategory] = useState<CategoryKey>('problems');
+  const [currentStep, setCurrentStep] = useState<StepIndex>(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [isMutating, setIsMutating] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  // Create form fields
-  const [titleInput, setTitleInput] = useState('');
-  const [descriptionInput, setDescriptionInput] = useState('');
-  const [featuresInput, setFeaturesInput] = useState('');
+  // Sequential 4-part fields for 1 cohesive task
+  const [problemTitle, setProblemTitle] = useState('');
+  const [problemDesc, setProblemDesc] = useState('');
+
+  const [appTitle, setAppTitle] = useState('');
+  const [appHowTo, setAppHowTo] = useState('');
+  const [appFeatures, setAppFeatures] = useState('');
+
+  const [userTitle, setUserTitle] = useState('');
+  const [userDesc, setUserDesc] = useState('');
+
+  const [devicePresetId, setDevicePresetId] = useState<string>(DEVICE_TARGETS[0].id);
+  const [deviceTitle, setDeviceTitle] = useState<string>(DEVICE_TARGETS[0].title);
+  const [deviceDesc, setDeviceDesc] = useState<string>(DEVICE_TARGETS[0].description);
 
   useEffect(() => {
     if (adminToken) {
@@ -129,14 +134,6 @@ export function AdminDashboardView({
       active = false;
     };
   }, [adminToken]);
-
-  const handleSelectCategory = (key: CategoryKey) => {
-    setActiveCategory(key);
-    setSearchQuery('');
-    setTitleInput('');
-    setDescriptionInput('');
-    setFeaturesInput('');
-  };
 
   const submitPin = async (pinValue: string) => {
     if (authSubmitting) return;
@@ -196,40 +193,147 @@ export function AdminDashboardView({
     void submitPin(pinInput);
   };
 
-  const handleCreateItem = async (e: React.FormEvent) => {
+  const isStepComplete = (step: StepIndex): boolean => {
+    if (step === 0) return Boolean(problemTitle.trim() && problemDesc.trim());
+    if (step === 1) return Boolean(appTitle.trim() && appHowTo.trim());
+    if (step === 2) return Boolean(userTitle.trim() && userDesc.trim());
+    return Boolean(deviceTitle.trim() && deviceDesc.trim());
+  };
+
+  const handleNextStep = () => {
+    if (!isStepComplete(currentStep)) {
+      const labels = ['The Problem', 'The App', 'The User', 'The Device'];
+      onNotify(`Lengkapi judul dan penjelasan pada langkah ${labels[currentStep]} dulu.`, 'warning');
+      return;
+    }
+    if (currentStep < 3) {
+      setCurrentStep((prev) => (prev + 1) as StepIndex);
+    }
+  };
+
+  const handleJumpToStep = (target: StepIndex) => {
+    if (target <= currentStep) {
+      setCurrentStep(target);
+      return;
+    }
+    for (let s = 0 as StepIndex; s < target; s = (s + 1) as StepIndex) {
+      if (!isStepComplete(s)) {
+        onNotify(`Isi berurutan mulai dari langkah ${STEPS[s].code} (${STEPS[s].title}).`, 'warning');
+        setCurrentStep(s);
+        return;
+      }
+    }
+    setCurrentStep(target);
+  };
+
+  const handleSelectDevicePreset = (presetId: string) => {
+    const preset = DEVICE_TARGETS.find((d) => d.id === presetId);
+    if (!preset) return;
+    setDevicePresetId(preset.id);
+    setDeviceTitle(preset.title);
+    setDeviceDesc(preset.description);
+  };
+
+  const resetWizardForm = () => {
+    setCurrentStep(0);
+    setProblemTitle('');
+    setProblemDesc('');
+    setAppTitle('');
+    setAppHowTo('');
+    setAppFeatures('');
+    setUserTitle('');
+    setUserDesc('');
+    setDevicePresetId(DEVICE_TARGETS[0].id);
+    setDeviceTitle(DEVICE_TARGETS[0].title);
+    setDeviceDesc(DEVICE_TARGETS[0].description);
+  };
+
+  const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!adminToken || isMutating) return;
 
-    const title = titleInput.trim();
-    const description = descriptionInput.trim();
-    if (!title || !description) {
-      onNotify('Judul dan deskripsi item wajib diisi.', 'warning');
+    if (currentStep < 3) {
+      handleNextStep();
       return;
     }
 
-    const payload: Record<string, unknown> = {
-      title,
-      description,
-      icon: CATEGORY_META[activeCategory].defaultIcon,
-    };
-
-    if (activeCategory === 'solutions') {
-      payload.coreFeatures = featuresInput
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter(Boolean)
-        .slice(0, 4);
+    if (!isStepComplete(0) || !isStepComplete(1) || !isStepComplete(2) || !isStepComplete(3)) {
+      onNotify('Semua 4 bagian (Problem, App, User, Device) wajib diisi lengkap.', 'warning');
+      return;
     }
+
+    const coreFeatures = appFeatures
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .slice(0, 3);
 
     setIsMutating(true);
     try {
-      const response = await fetch(`/api/admin/categories/${activeCategory}`, {
+      const response = await fetch('/api/admin/tasks', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${adminToken}`,
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          problem: {
+            title: problemTitle.trim(),
+            description: problemDesc.trim(),
+          },
+          solution: {
+            title: appTitle.trim(),
+            howToBuild: appHowTo.trim(),
+            coreFeatures,
+          },
+          targetUser: {
+            title: userTitle.trim(),
+            description: userDesc.trim(),
+          },
+          deviceTarget: {
+            presetId: devicePresetId,
+            title: deviceTitle.trim(),
+            description: deviceDesc.trim(),
+          },
+        }),
+      });
+
+      const data = (await response.json().catch(() => ({}))) as {
+        categories?: CategoryPools;
+        error?: string;
+      };
+
+      if (response.status === 401) {
+        onLogout();
+        onNotify('Sesi admin berakhir. Silakan masukkan PIN kembali.', 'warning');
+        return;
+      }
+
+      if (!response.ok || !data.categories) {
+        onNotify(data.error || 'Gagal menyimpan paket tugas.', 'warning');
+        return;
+      }
+
+      onCategoriesChange(data.categories);
+      const savedTitle = appTitle.trim();
+      resetWizardForm();
+      onNotify(`Paket tugas "${savedTitle}" berhasil ditambahkan.`, 'success');
+    } catch {
+      onNotify('Gagal terhubung ke server saat menyimpan paket tugas.', 'warning');
+    } finally {
+      setIsMutating(false);
+    }
+  };
+
+  const handleDeleteTask = async (task: TaskBundle) => {
+    if (!adminToken || deletingId) return;
+    setDeletingId(task.id);
+    try {
+      const response = await fetch(`/api/admin/tasks/${encodeURIComponent(task.id)}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+        },
       });
       const data = (await response.json().catch(() => ({}))) as {
         categories?: CategoryPools;
@@ -243,71 +347,40 @@ export function AdminDashboardView({
       }
 
       if (!response.ok || !data.categories) {
-        onNotify(data.error || 'Gagal menambah item.', 'warning');
+        onNotify(data.error || 'Gagal menghapus paket tugas.', 'warning');
         return;
       }
 
       onCategoriesChange(data.categories);
-      setTitleInput('');
-      setDescriptionInput('');
-      setFeaturesInput('');
-      onNotify(`Berhasil menambahkan "${title}" ke ${CATEGORY_META[activeCategory].label}.`, 'success');
+      onNotify(`Paket tugas "${task.problem.title}" dihapus.`, 'info');
     } catch {
-      onNotify('Gagal terhubung ke server saat menyimpan item.', 'warning');
-    } finally {
-      setIsMutating(false);
-    }
-  };
-
-  const handleDeleteItem = async (itemId: string, itemTitle: string) => {
-    if (!adminToken || deletingId) return;
-    setDeletingId(itemId);
-    try {
-      const response = await fetch(
-        `/api/admin/categories/${activeCategory}/${encodeURIComponent(itemId)}`,
-        {
-          method: 'DELETE',
-          headers: {
-            Authorization: `Bearer ${adminToken}`,
-          },
-        }
-      );
-      const data = (await response.json().catch(() => ({}))) as {
-        categories?: CategoryPools;
-        error?: string;
-      };
-
-      if (response.status === 401) {
-        onLogout();
-        onNotify('Sesi admin berakhir. Silakan masukkan PIN kembali.', 'warning');
-        return;
-      }
-
-      if (!response.ok || !data.categories) {
-        onNotify(data.error || 'Gagal menghapus item.', 'warning');
-        return;
-      }
-
-      onCategoriesChange(data.categories);
-      onNotify(`"${itemTitle}" dihapus dari ${CATEGORY_META[activeCategory].label}.`, 'info');
-    } catch {
-      onNotify('Gagal terhubung ke server saat menghapus item.', 'warning');
+      onNotify('Gagal terhubung ke server saat menghapus paket tugas.', 'warning');
     } finally {
       setDeletingId(null);
     }
   };
 
-  const activeItems = useMemo(() => {
+  const tasksList = categories.tasks ?? [];
+
+  const filteredTasks = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    const list = categories[activeCategory];
-    if (!q) return list;
-    return list.filter((item) => {
-      const detail =
-        'howToBuild' in item ? item.howToBuild : item.description;
-      const haystack = `${item.title} ${detail}`.toLowerCase();
+    if (!q) return tasksList;
+    return tasksList.filter((task) => {
+      const haystack = [
+        task.problem.title,
+        task.problem.description,
+        task.solution.title,
+        task.solution.howToBuild,
+        task.targetUser.title,
+        task.targetUser.description,
+        task.deviceTarget.title,
+        task.deviceTarget.description,
+      ]
+        .join(' ')
+        .toLowerCase();
       return haystack.includes(q);
     });
-  }, [activeCategory, categories, searchQuery]);
+  }, [searchQuery, tasksList]);
 
   if (!adminToken) {
     return (
@@ -333,9 +406,7 @@ export function AdminDashboardView({
           >
             <div>
               <h1 className="text-xl font-bold text-[#111827] leading-tight">
-                {authStatus.source === 'unclaimed'
-                  ? 'Atur PIN Admin'
-                  : 'PIN Admin'}
+                {authStatus.source === 'unclaimed' ? 'Atur PIN Admin' : 'PIN Admin'}
               </h1>
               <p className="text-xs text-[#64748B] mt-1">
                 {authStatus.source === 'unclaimed'
@@ -355,7 +426,6 @@ export function AdminDashboardView({
                     PIN Admin
                   </label>
                   <div className="relative">
-                    {/* Large masked 6-slot PIN boxes */}
                     <div
                       aria-hidden="true"
                       className="grid grid-cols-6 gap-2.5 sm:gap-3 pointer-events-none"
@@ -417,8 +487,8 @@ export function AdminDashboardView({
     );
   }
 
-  const activeMeta = CATEGORY_META[activeCategory];
-  const totalCount = categories[activeCategory].length;
+  const activeStepMeta = STEPS[currentStep];
+  const totalTasks = tasksList.length;
 
   return (
     <main className="flex-1 min-h-0 w-full bg-[#F8FAFC] overflow-y-auto px-4 sm:px-8 py-5 sm:py-7">
@@ -436,10 +506,10 @@ export function AdminDashboardView({
             </button>
             <div className="min-w-0">
               <h1 className="text-base sm:text-lg font-bold text-[#111827] truncate">
-                Admin Dashboard · 4 Kategori
+                Admin Dashboard · Paket Tugas Peserta
               </h1>
               <p className="text-xs text-[#64748B] truncate">
-                Kelola daftar isi mesin ide untuk setiap kategori
+                Isi berurutan 1 paket tugas: Problem → App → User → Device
               </p>
             </div>
           </div>
@@ -459,138 +529,320 @@ export function AdminDashboardView({
           </div>
         </header>
 
-        {/* 4 Category Selector Cards */}
-        <section
-          aria-label="Pilih Kategori Idea Machine"
-          className="grid grid-cols-2 lg:grid-cols-4 gap-3"
-        >
-          {CATEGORY_ORDER.map((key) => {
-            const meta = CATEGORY_META[key];
-            const count = categories[key].length;
-            const isSelected = activeCategory === key;
-            return (
-              <button
-                key={key}
-                type="button"
-                onClick={() => handleSelectCategory(key)}
-                className={`text-left rounded-2xl p-4 transition-all cursor-pointer ${
-                  isSelected
-                    ? 'bg-white shadow-[0_12px_30px_rgba(15,23,42,0.09)] ring-2'
-                    : 'bg-white/80 hover:bg-white shadow-[0_4px_14px_rgba(15,23,42,0.04)]'
-                }`}
-                style={
-                  isSelected
-                    ? { ['--tw-ring-color' as string]: meta.accent }
-                    : undefined
-                }
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span
-                    className="px-2.5 py-0.5 rounded-lg text-[11px] font-bold"
-                    style={{ backgroundColor: meta.softBg, color: meta.accent }}
-                  >
-                    {meta.label}
-                  </span>
-                  <span className="text-lg font-bold tabular-nums text-[#111827]">
-                    {count}
-                  </span>
-                </div>
-                <p className="text-xs text-[#64748B] mt-2 truncate">{meta.subtitle}</p>
-              </button>
-            );
-          })}
-        </section>
-
-        {/* Dashboard Workspace: Create (Left) + Read & Delete (Right) */}
+        {/* Main Workspace: Sequential 4-Step Builder (Left) + Task Bundle List (Right) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-          {/* Create Form */}
+          {/* Sequential Builder Form */}
           <form
-            onSubmit={handleCreateItem}
-            className="lg:col-span-5 bg-white rounded-3xl p-5 sm:p-6 shadow-[0_10px_30px_rgba(15,23,42,0.05)] space-y-4"
+            onSubmit={handleCreateTask}
+            className="lg:col-span-5 bg-white rounded-3xl p-5 sm:p-6 shadow-[0_10px_30px_rgba(15,23,42,0.05)] space-y-5"
           >
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="text-base font-bold text-[#111827]">
-                Tambah ke {activeMeta.label}
-              </h2>
-              <span
-                className="w-2.5 h-2.5 rounded-full shrink-0"
-                style={{ backgroundColor: activeMeta.accent }}
-                aria-hidden="true"
-              />
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="text-base font-bold text-[#111827]">
+                  Buat Paket Tugas Baru
+                </h2>
+                <span
+                  className="px-2.5 py-0.5 rounded-lg text-[11px] font-bold"
+                  style={{
+                    backgroundColor: activeStepMeta.softBg,
+                    color: activeStepMeta.accent,
+                  }}
+                >
+                  Langkah {currentStep + 1} / 4
+                </span>
+              </div>
+
+              {/* 4-Step Sequential Progress Bar */}
+              <div className="grid grid-cols-4 gap-1.5" role="tablist" aria-label="Urutan Pengisian Tugas">
+                {STEPS.map((step) => {
+                  const isCurrent = step.index === currentStep;
+                  const done = isStepComplete(step.index);
+                  return (
+                    <button
+                      key={step.code}
+                      type="button"
+                      role="tab"
+                      aria-selected={isCurrent}
+                      onClick={() => handleJumpToStep(step.index)}
+                      className={`rounded-xl px-2 py-2 text-left transition-all cursor-pointer ${
+                        isCurrent
+                          ? 'bg-[#F8FAFC] ring-2 shadow-xs'
+                          : done
+                            ? 'bg-[#F8FAFC] hover:bg-[#F1F5F9]'
+                            : 'bg-[#F1F5F9]/70 opacity-75 hover:opacity-100'
+                      }`}
+                      style={
+                        isCurrent
+                          ? { ['--tw-ring-color' as string]: step.accent }
+                          : undefined
+                      }
+                    >
+                      <div className="flex items-center justify-between gap-1">
+                        <span
+                          className="text-[10px] font-bold tabular-nums"
+                          style={{ color: step.accent }}
+                        >
+                          {step.code}
+                        </span>
+                        <span
+                          className={`w-2 h-2 rounded-full transition-opacity ${
+                            done || isCurrent ? 'opacity-100' : 'opacity-25'
+                          }`}
+                          style={{ backgroundColor: step.accent }}
+                          aria-hidden="true"
+                        />
+                      </div>
+                      <div className="text-[11px] font-bold text-[#111827] truncate mt-0.5">
+                        {step.title}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-semibold text-[#475569] mb-1">
-                  Judul Item
-                </label>
-                <input
-                  type="text"
-                  value={titleInput}
-                  onChange={(e) => setTitleInput(e.target.value)}
-                  maxLength={80}
-                  placeholder={
-                    activeCategory === 'problems'
-                      ? 'Contoh: Tagihan Listrik Membengkak'
-                      : activeCategory === 'solutions'
-                        ? 'Contoh: Pencatat Belanja Suara AI'
-                        : activeCategory === 'targetUsers'
-                          ? 'Contoh: Pemilik Kos & Kontrakan'
-                          : 'Contoh: Smartwatch / Layar Mini'
-                  }
-                  className="w-full min-h-[42px] px-3.5 py-2 rounded-xl bg-[#F1F5F9] focus:bg-white focus:ring-2 focus:ring-[#1A73E8] focus:outline-none text-sm font-medium text-[#111827]"
-                />
+            {/* Continuity Context Summary from Previous Steps */}
+            {currentStep > 0 && (
+              <div className="rounded-2xl bg-[#F8FAFC] p-3.5 space-y-1.5 text-xs">
+                <div className="text-[11px] font-bold text-[#64748B]">
+                  Kesinambungan Tugas
+                </div>
+                {problemTitle.trim() && (
+                  <p className="text-[#111827] truncate">
+                    <span className="font-bold text-[#EA4335]">Problem:</span>{' '}
+                    {problemTitle.trim()}
+                  </p>
+                )}
+                {currentStep > 1 && appTitle.trim() && (
+                  <p className="text-[#111827] truncate">
+                    <span className="font-bold text-[#1E8E3E]">App:</span>{' '}
+                    {appTitle.trim()}
+                  </p>
+                )}
+                {currentStep > 2 && userTitle.trim() && (
+                  <p className="text-[#111827] truncate">
+                    <span className="font-bold text-[#1A73E8]">User:</span>{' '}
+                    {userTitle.trim()}
+                  </p>
+                )}
               </div>
+            )}
 
-              <div>
-                <label className="block text-xs font-semibold text-[#475569] mb-1">
-                  {activeCategory === 'solutions' ? 'Cara Kerja Aplikasi' : 'Deskripsi'}
-                </label>
-                <textarea
-                  rows={3}
-                  value={descriptionInput}
-                  onChange={(e) => setDescriptionInput(e.target.value)}
-                  maxLength={240}
-                  placeholder="Tulis penjelasan singkat yang mudah dimengerti peserta..."
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#F1F5F9] focus:bg-white focus:ring-2 focus:ring-[#1A73E8] focus:outline-none text-sm font-medium text-[#111827] resize-none"
-                />
-              </div>
-
-              {activeCategory === 'solutions' && (
+            {/* Step 1: The Problem */}
+            {currentStep === 0 && (
+              <div className="space-y-3">
                 <div>
                   <label className="block text-xs font-semibold text-[#475569] mb-1">
-                    Fitur Utama (1 fitur per baris, maks 3)
+                    1. Judul Masalah (The Problem)
+                  </label>
+                  <input
+                    type="text"
+                    value={problemTitle}
+                    onChange={(e) => setProblemTitle(e.target.value)}
+                    maxLength={80}
+                    placeholder="Contoh: Tagihan Listrik Rumah Sering Membengkak"
+                    className="w-full min-h-[42px] px-3.5 py-2 rounded-xl bg-[#F1F5F9] focus:bg-white focus:ring-2 focus:ring-[#EA4335] focus:outline-none text-sm font-medium text-[#111827]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#475569] mb-1">
+                    Penjelasan Masalah
                   </label>
                   <textarea
                     rows={3}
-                    value={featuresInput}
-                    onChange={(e) => setFeaturesInput(e.target.value)}
-                    placeholder={'Foto struk pakai kamera\nAI langsung hitung total\nRingkasan rapi siap dibagikan'}
+                    value={problemDesc}
+                    onChange={(e) => setProblemDesc(e.target.value)}
+                    maxLength={240}
+                    placeholder="Jelaskan kesulitan nyata yang dialami sehari-hari..."
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#F1F5F9] focus:bg-white focus:ring-2 focus:ring-[#EA4335] focus:outline-none text-sm font-medium text-[#111827] resize-none"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Step 2: The App */}
+            {currentStep === 1 && (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold text-[#475569] mb-1">
+                    2. Nama / Konsep Aplikasi AI (The App)
+                  </label>
+                  <input
+                    type="text"
+                    value={appTitle}
+                    onChange={(e) => setAppTitle(e.target.value)}
+                    maxLength={80}
+                    placeholder="Contoh: Foto Meteran & Pemantau Listrik Pintar"
+                    className="w-full min-h-[42px] px-3.5 py-2 rounded-xl bg-[#F1F5F9] focus:bg-white focus:ring-2 focus:ring-[#1E8E3E] focus:outline-none text-sm font-medium text-[#111827]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#475569] mb-1">
+                    Cara Kerja Aplikasi (menjawab masalah di langkah 1)
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={appHowTo}
+                    onChange={(e) => setAppHowTo(e.target.value)}
+                    maxLength={240}
+                    placeholder="Contoh: Cukup foto meteran listrik, AI hitung perkiraan tagihan bulan ini dan kasih saran hemat..."
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#F1F5F9] focus:bg-white focus:ring-2 focus:ring-[#1E8E3E] focus:outline-none text-sm font-medium text-[#111827] resize-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#475569] mb-1">
+                    Fitur Utama (opsional, 1 per baris, maks 3)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={appFeatures}
+                    onChange={(e) => setAppFeatures(e.target.value)}
+                    placeholder={'Foto meteran langsung dari HP\nPerkiraan tagihan akhir bulan'}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#F1F5F9] focus:bg-white focus:ring-2 focus:ring-[#1E8E3E] focus:outline-none text-sm font-medium text-[#111827] resize-none"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Step 3: The User */}
+            {currentStep === 2 && (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold text-[#475569] mb-1">
+                    3. Siapa Penggunanya (The User)
+                  </label>
+                  <input
+                    type="text"
+                    value={userTitle}
+                    onChange={(e) => setUserTitle(e.target.value)}
+                    maxLength={80}
+                    placeholder="Contoh: Keluarga Muda & Penghuni Kos"
+                    className="w-full min-h-[42px] px-3.5 py-2 rounded-xl bg-[#F1F5F9] focus:bg-white focus:ring-2 focus:ring-[#1A73E8] focus:outline-none text-sm font-medium text-[#111827]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#475569] mb-1">
+                    Konteks & Kebutuhan Pengguna
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={userDesc}
+                    onChange={(e) => setUserDesc(e.target.value)}
+                    maxLength={240}
+                    placeholder="Contoh: Ingin pantau pemakaian listrik tiap minggu tanpa ribet hitung manual..."
                     className="w-full px-3.5 py-2.5 rounded-xl bg-[#F1F5F9] focus:bg-white focus:ring-2 focus:ring-[#1A73E8] focus:outline-none text-sm font-medium text-[#111827] resize-none"
                   />
                 </div>
+              </div>
+            )}
+
+            {/* Step 4: The Device */}
+            {currentStep === 3 && (
+              <div className="space-y-3">
+                <div>
+                  <span className="block text-xs font-semibold text-[#475569] mb-1.5">
+                    4. Pilih Cepat Perangkat (The Device)
+                  </span>
+                  <div className="grid grid-cols-2 gap-2">
+                    {DEVICE_TARGETS.map((preset) => {
+                      const active = devicePresetId === preset.id;
+                      return (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => handleSelectDevicePreset(preset.id)}
+                          className={`px-3 py-2 rounded-xl text-left text-xs font-bold transition-all cursor-pointer ${
+                            active
+                              ? 'bg-[#FEF3C7] text-[#B45309] ring-2 ring-[#D97706]'
+                              : 'bg-[#F1F5F9] text-[#475569] hover:bg-[#E2E8F0]'
+                          }`}
+                        >
+                          {preset.title}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#475569] mb-1">
+                    Nama Perangkat
+                  </label>
+                  <input
+                    type="text"
+                    value={deviceTitle}
+                    onChange={(e) => {
+                      setDevicePresetId('custom');
+                      setDeviceTitle(e.target.value);
+                    }}
+                    maxLength={80}
+                    placeholder="Contoh: Tampilan HP"
+                    className="w-full min-h-[42px] px-3.5 py-2 rounded-xl bg-[#F1F5F9] focus:bg-white focus:ring-2 focus:ring-[#D97706] focus:outline-none text-sm font-medium text-[#111827]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#475569] mb-1">
+                    Alasan / Tampilan di Perangkat Ini
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={deviceDesc}
+                    onChange={(e) => setDeviceDesc(e.target.value)}
+                    maxLength={240}
+                    placeholder="Jelaskan kenapa aplikasi ini pas dipakai di perangkat tersebut..."
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#F1F5F9] focus:bg-white focus:ring-2 focus:ring-[#D97706] focus:outline-none text-sm font-medium text-[#111827] resize-none"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Sequential Navigation Buttons */}
+            <div className="flex items-center gap-2.5 pt-1">
+              {currentStep > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setCurrentStep((prev) => (prev - 1) as StepIndex)}
+                  className="min-h-[46px] px-4 py-2.5 rounded-2xl bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#111827] text-sm font-bold inline-flex items-center justify-center gap-1.5 transition-colors cursor-pointer shrink-0"
+                >
+                  <ArrowLeft className="w-4 h-4" aria-hidden="true" />
+                  <span>Sebelumnya</span>
+                </button>
+              )}
+
+              {currentStep < 3 ? (
+                <button
+                  key="next-step-btn"
+                  type="button"
+                  onClick={handleNextStep}
+                  className="flex-1 min-h-[46px] px-5 py-2.5 rounded-2xl bg-[#1A73E8] hover:bg-[#1557B0] text-white text-sm font-bold inline-flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-[0_6px_18px_rgba(26,115,232,0.22)]"
+                >
+                  <span>Lanjut ke {STEPS[currentStep + 1].title}</span>
+                  <ArrowRight className="w-4 h-4" aria-hidden="true" />
+                </button>
+              ) : (
+                <button
+                  key="submit-task-btn"
+                  type="submit"
+                  disabled={isMutating}
+                  className="flex-1 min-h-[46px] px-5 py-2.5 rounded-2xl bg-[#1A73E8] hover:bg-[#1557B0] text-white text-sm font-bold inline-flex items-center justify-center gap-2 transition-colors cursor-pointer disabled:opacity-60 shadow-[0_6px_18px_rgba(26,115,232,0.22)]"
+                >
+                  <Plus className="w-4 h-4" aria-hidden="true" />
+                  <span>{isMutating ? 'Menyimpan...' : 'Simpan Paket Tugas'}</span>
+                </button>
               )}
             </div>
-
-            <button
-              type="submit"
-              disabled={isMutating}
-              className="w-full min-h-[46px] px-5 py-2.5 rounded-2xl bg-[#1A73E8] hover:bg-[#1557B0] text-white text-sm font-bold inline-flex items-center justify-center gap-2 transition-colors cursor-pointer disabled:opacity-60 shadow-[0_6px_18px_rgba(26,115,232,0.22)]"
-            >
-              <Plus className="w-4 h-4" aria-hidden="true" />
-              <span>{isMutating ? 'Menyimpan...' : `Tambah ke ${activeMeta.label}`}</span>
-            </button>
           </form>
 
-          {/* Read + Delete List */}
+          {/* Unified Task Bundles List (Read & Delete) */}
           <section className="lg:col-span-7 bg-white rounded-3xl p-5 sm:p-6 shadow-[0_10px_30px_rgba(15,23,42,0.05)] space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="text-base font-bold text-[#111827]">
-                  Daftar {activeMeta.label} ({totalCount})
+                  Daftar Paket Tugas ({totalTasks})
                 </h2>
                 <p className="text-xs text-[#64748B]">
-                  Item aktif yang muncul saat mesin diputar
+                  Setiap tugas berisi 4 bagian berkesinambungan: Problem → App → User → Device
                 </p>
               </div>
 
@@ -603,71 +855,91 @@ export function AdminDashboardView({
                   type="search"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Cari item..."
+                  placeholder="Cari paket tugas..."
                   className="w-full h-9 pl-9 pr-3 rounded-xl bg-[#F1F5F9] focus:bg-white focus:ring-2 focus:ring-[#1A73E8] focus:outline-none text-xs font-medium text-[#111827]"
                 />
               </div>
             </div>
 
-            {activeItems.length === 0 ? (
+            {filteredTasks.length === 0 ? (
               <div className="py-10 text-center text-sm text-[#64748B]">
-                Tidak ada item yang cocok dengan pencarian.
+                Tidak ada paket tugas yang cocok dengan pencarian.
               </div>
             ) : (
-              <div className="space-y-2.5 max-h-[540px] overflow-y-auto pr-1">
-                {activeItems.map((item) => {
-                  const descText =
-                    activeCategory === 'solutions'
-                      ? (item as SolutionItem).howToBuild
-                      : (item as ProblemItem | TargetUserItem | DeviceTargetItem).description;
-
-                  const isOnlyItem = totalCount <= 1;
-
+              <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
+                {filteredTasks.map((task) => {
+                  const isOnlyTask = totalTasks <= 1;
                   return (
                     <article
-                      key={item.id}
-                      className="rounded-2xl bg-[#F8FAFC] p-4 flex items-start justify-between gap-3.5"
+                      key={task.id}
+                      className="rounded-2xl bg-[#F8FAFC] p-4 space-y-3"
                     >
-                      <div className="min-w-0 space-y-1">
-                        <h3 className="text-sm font-bold text-[#111827] leading-snug">
-                          {item.title}
-                        </h3>
-                        <p className="text-xs text-[#4B5563] leading-relaxed">
-                          {descText}
-                        </p>
-                        {activeCategory === 'solutions' &&
-                          (item as SolutionItem).coreFeatures?.length > 0 && (
-                            <ul className="pt-1 space-y-0.5">
-                              {(item as SolutionItem).coreFeatures.map((feat, idx) => (
-                                <li
-                                  key={idx}
-                                  className="text-[11px] text-[#475569] flex items-center gap-1.5"
-                                >
-                                  <span
-                                    className="w-1.5 h-1.5 rounded-full shrink-0"
-                                    style={{ backgroundColor: activeMeta.accent }}
-                                  />
-                                  <span>{feat}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <span className="inline-block px-2 py-0.5 rounded-md bg-[#FEE2E2] text-[#EA4335] text-[10px] font-bold">
+                            01 · The Problem
+                          </span>
+                          <h3 className="text-sm font-bold text-[#111827] mt-1 leading-snug">
+                            {task.problem.title}
+                          </h3>
+                          <p className="text-xs text-[#4B5563] mt-0.5 leading-relaxed">
+                            {task.problem.description}
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          disabled={isOnlyTask || deletingId === task.id}
+                          onClick={() => handleDeleteTask(task)}
+                          title={
+                            isOnlyTask
+                              ? 'Minimal tersisa 1 paket tugas'
+                              : `Hapus ${task.problem.title}`
+                          }
+                          aria-label={`Hapus ${task.problem.title}`}
+                          className="w-9 h-9 rounded-xl bg-white hover:bg-[#FEF2F2] text-[#64748B] hover:text-[#DC2626] shadow-[0_2px_8px_rgba(15,23,42,0.05)] inline-flex items-center justify-center shrink-0 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          <Trash2 className="w-4 h-4" aria-hidden="true" />
+                        </button>
                       </div>
 
-                      <button
-                        type="button"
-                        disabled={isOnlyItem || deletingId === item.id}
-                        onClick={() => handleDeleteItem(item.id, item.title)}
-                        title={
-                          isOnlyItem
-                            ? 'Minimal tersisa 1 item'
-                            : `Hapus ${item.title}`
-                        }
-                        aria-label={`Hapus ${item.title}`}
-                        className="w-9 h-9 rounded-xl bg-white hover:bg-[#FEF2F2] text-[#64748B] hover:text-[#DC2626] shadow-[0_2px_8px_rgba(15,23,42,0.05)] inline-flex items-center justify-center shrink-0 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        <Trash2 className="w-4 h-4" aria-hidden="true" />
-                      </button>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+                        <div className="rounded-xl bg-white p-3 space-y-1">
+                          <span className="inline-block px-2 py-0.5 rounded-md bg-[#E6F4EA] text-[#1E8E3E] text-[10px] font-bold">
+                            02 · The App
+                          </span>
+                          <div className="text-xs font-bold text-[#111827] leading-snug">
+                            {task.solution.title}
+                          </div>
+                          <p className="text-[11px] text-[#4B5563] leading-relaxed">
+                            {task.solution.howToBuild}
+                          </p>
+                        </div>
+
+                        <div className="rounded-xl bg-white p-3 space-y-1">
+                          <span className="inline-block px-2 py-0.5 rounded-md bg-[#E8F0FE] text-[#1A73E8] text-[10px] font-bold">
+                            03 · The User
+                          </span>
+                          <div className="text-xs font-bold text-[#111827] leading-snug">
+                            {task.targetUser.title}
+                          </div>
+                          <p className="text-[11px] text-[#4B5563] leading-relaxed">
+                            {task.targetUser.description}
+                          </p>
+                        </div>
+
+                        <div className="rounded-xl bg-white p-3 space-y-1">
+                          <span className="inline-block px-2 py-0.5 rounded-md bg-[#FEF3C7] text-[#B45309] text-[10px] font-bold">
+                            04 · The Device
+                          </span>
+                          <div className="text-xs font-bold text-[#111827] leading-snug">
+                            {task.deviceTarget.title}
+                          </div>
+                          <p className="text-[11px] text-[#4B5563] leading-relaxed">
+                            {task.deviceTarget.description}
+                          </p>
+                        </div>
+                      </div>
                     </article>
                   );
                 })}

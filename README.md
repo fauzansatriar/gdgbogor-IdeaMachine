@@ -152,7 +152,7 @@ npm run lint
 | `GET` | `/api/health` | Health check endpoint returning `{ "ok": true }`. |
 | `GET` | `/api/categories` | Returns the live 4-category pools (`problems`, `solutions`, `targetUsers`, `deviceTargets`). |
 | `POST` | `/api/generate-mission` | Generates a structured Indonesian everyday mission (`problem`, `targetUser`, `solution`, `deviceId`) using Gemini structured outputs with multi-model failover (`gemini-4-hydrogen` / `gemini-3.1-flash-lite`). |
-| `POST` / `DELETE` | `/api/admin/categories/:category` | PIN-authenticated endpoints to add or remove items in any of the 4 Idea Machine categories. |
+| `POST` / `DELETE` | `/api/admin/tasks` | PIN-authenticated endpoints to create or remove cohesive 4-part task bundles (`Problem -> App -> User -> Device`). |
 
 ---
 

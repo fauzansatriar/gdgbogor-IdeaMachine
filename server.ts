@@ -112,14 +112,23 @@ interface StoredDeviceTargetItem {
   description: string;
 }
 
+interface StoredTaskBundle {
+  id: string;
+  problem: StoredProblemItem;
+  solution: StoredSolutionItem;
+  targetUser: StoredTargetUserItem;
+  deviceTarget: StoredDeviceTargetItem;
+}
+
 interface CategoryStore {
+  tasks: StoredTaskBundle[];
   problems: StoredProblemItem[];
   solutions: StoredSolutionItem[];
   targetUsers: StoredTargetUserItem[];
   deviceTargets: StoredDeviceTargetItem[];
 }
 
-const DEFAULT_CATEGORIES: CategoryStore = {
+const DEFAULT_CATEGORIES: Omit<CategoryStore, 'tasks'> = {
   problems: [
     {
       id: 'food-waste',
@@ -330,6 +339,55 @@ const DEFAULT_CATEGORIES: CategoryStore = {
   ],
 };
 
+const DEFAULT_TASKS: StoredTaskBundle[] = [
+  {
+    id: 'task-food-kitchen',
+    problem: DEFAULT_CATEGORIES.problems[0],
+    solution: DEFAULT_CATEGORIES.solutions[0],
+    targetUser: DEFAULT_CATEGORIES.targetUsers[3],
+    deviceTarget: DEFAULT_CATEGORIES.deviceTargets[0],
+  },
+  {
+    id: 'task-umkm-cashflow',
+    problem: DEFAULT_CATEGORIES.problems[3],
+    solution: DEFAULT_CATEGORIES.solutions[4],
+    targetUser: DEFAULT_CATEGORIES.targetUsers[0],
+    deviceTarget: DEFAULT_CATEGORIES.deviceTargets[3],
+  },
+  {
+    id: 'task-commuter-weather',
+    problem: DEFAULT_CATEGORIES.problems[4],
+    solution: DEFAULT_CATEGORIES.solutions[1],
+    targetUser: DEFAULT_CATEGORIES.targetUsers[2],
+    deviceTarget: DEFAULT_CATEGORIES.deviceTargets[0],
+  },
+  {
+    id: 'task-student-notes',
+    problem: DEFAULT_CATEGORIES.problems[5],
+    solution: DEFAULT_CATEGORIES.solutions[3],
+    targetUser: DEFAULT_CATEGORIES.targetUsers[1],
+    deviceTarget: DEFAULT_CATEGORIES.deviceTargets[1],
+  },
+  {
+    id: 'task-community-queue',
+    problem: DEFAULT_CATEGORIES.problems[1],
+    solution: DEFAULT_CATEGORIES.solutions[2],
+    targetUser: DEFAULT_CATEGORIES.targetUsers[4],
+    deviceTarget: DEFAULT_CATEGORIES.deviceTargets[2],
+  },
+];
+
+function deriveStoreFromTasks(tasks: StoredTaskBundle[]): CategoryStore {
+  const safeTasks = tasks.length > 0 ? tasks : structuredClone(DEFAULT_TASKS);
+  return {
+    tasks: safeTasks,
+    problems: safeTasks.map((t) => t.problem),
+    solutions: safeTasks.map((t) => t.solution),
+    targetUsers: safeTasks.map((t) => t.targetUser),
+    deviceTargets: safeTasks.map((t) => t.deviceTarget),
+  };
+}
+
 function ensureDataDir(): void {
   if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -340,39 +398,29 @@ function loadCategories(): CategoryStore {
   try {
     ensureDataDir();
     if (!fs.existsSync(CATEGORIES_FILE)) {
-      fs.writeFileSync(CATEGORIES_FILE, JSON.stringify(DEFAULT_CATEGORIES, null, 2), 'utf8');
-      return structuredClone(DEFAULT_CATEGORIES);
+      const initialStore = deriveStoreFromTasks(structuredClone(DEFAULT_TASKS));
+      fs.writeFileSync(CATEGORIES_FILE, JSON.stringify(initialStore, null, 2), 'utf8');
+      return initialStore;
     }
     const raw = fs.readFileSync(CATEGORIES_FILE, 'utf8');
     const parsed = JSON.parse(raw) as Partial<CategoryStore>;
-    return {
-      problems:
-        Array.isArray(parsed.problems) && parsed.problems.length > 0
-          ? parsed.problems
-          : structuredClone(DEFAULT_CATEGORIES.problems),
-      solutions:
-        Array.isArray(parsed.solutions) && parsed.solutions.length > 0
-          ? parsed.solutions
-          : structuredClone(DEFAULT_CATEGORIES.solutions),
-      targetUsers:
-        Array.isArray(parsed.targetUsers) && parsed.targetUsers.length > 0
-          ? parsed.targetUsers
-          : structuredClone(DEFAULT_CATEGORIES.targetUsers),
-      deviceTargets:
-        Array.isArray(parsed.deviceTargets) && parsed.deviceTargets.length > 0
-          ? parsed.deviceTargets
-          : structuredClone(DEFAULT_CATEGORIES.deviceTargets),
-    };
+    if (Array.isArray(parsed.tasks) && parsed.tasks.length > 0) {
+      return deriveStoreFromTasks(parsed.tasks);
+    }
+    const migratedStore = deriveStoreFromTasks(structuredClone(DEFAULT_TASKS));
+    saveCategories(migratedStore);
+    return migratedStore;
   } catch (err) {
     console.error('[loadCategories error]:', err);
-    return structuredClone(DEFAULT_CATEGORIES);
+    return deriveStoreFromTasks(structuredClone(DEFAULT_TASKS));
   }
 }
 
 function saveCategories(store: CategoryStore): void {
   ensureDataDir();
+  const normalized = deriveStoreFromTasks(store.tasks);
   const tmpFile = `${CATEGORIES_FILE}.${process.pid}.tmp`;
-  fs.writeFileSync(tmpFile, JSON.stringify(store, null, 2), 'utf8');
+  fs.writeFileSync(tmpFile, JSON.stringify(normalized, null, 2), 'utf8');
   fs.renameSync(tmpFile, CATEGORIES_FILE);
 }
 
@@ -692,26 +740,29 @@ async function generateEverydayMission(
 ) {
   const ai = getAiClient();
   const categories = loadCategories();
-  const liveDeviceIds =
-    categories.deviceTargets.length > 0
-      ? categories.deviceTargets.map((d) => d.id)
-      : [...VALID_DEVICE_IDS];
+  const liveDeviceIds = Array.from(
+    new Set(
+      categories.deviceTargets.length > 0
+        ? categories.deviceTargets.map((d) => d.id)
+        : [...VALID_DEVICE_IDS]
+    )
+  );
 
   const chosenTheme =
     EVERYDAY_THEMES[Math.floor(Math.random() * EVERYDAY_THEMES.length)];
   const randomNonce = Math.floor(100000 + Math.random() * 900000);
 
-  const sampleProblemHint = categories.problems
-    .slice(0, 6)
-    .map((p) => p.title)
-    .join(', ');
-  const sampleUserHint = categories.targetUsers
-    .slice(0, 5)
-    .map((u) => u.title)
-    .join(', ');
-  const sampleDeviceHint = categories.deviceTargets
-    .map((d) => `${d.id} (${d.title})`)
-    .join(', ');
+  const cohesiveTaskExamples = categories.tasks
+    .slice(0, 8)
+    .map(
+      (task, idx) =>
+        `  ${idx + 1}. Problem: "${task.problem.title}" -> App: "${task.solution.title}" -> User: "${task.targetUser.title}" -> Device: ${task.deviceTarget.id} (${task.deviceTarget.title})`
+    )
+    .join('\n');
+
+  const uniqueDeviceHint = Array.from(
+    new Map(categories.deviceTargets.map((d) => [d.id, `${d.id} (${d.title})`])).values()
+  ).join(', ');
 
   const avoidText =
     previousIdeas.length > 0
@@ -722,10 +773,9 @@ async function generateEverydayMission(
 
 Tugasmu: Buat SATU ide aplikasi baru yang benar-benar dibutuhkan dalam KEHIDUPAN SEHARI-HARI masyarakat Indonesia.
 
-Referensi kategori aktif di mesin ide:
-- Contoh jenis masalah: ${sampleProblemHint}
-- Contoh target pengguna: ${sampleUserHint}
-- Pilihan deviceId yang tersedia: ${sampleDeviceHint}
+Referensi paket tugas berkesinambungan (Problem -> App -> User -> Device) yang aktif di mesin ide:
+${cohesiveTaskExamples}
+- Pilihan deviceId yang tersedia: ${uniqueDeviceHint}
 
 Aturan wajib:
 1. Topik HARUS seputar kebutuhan sehari-hari yang nyata, membumi, dan langsung terbayang manfaatnya (rumah tangga, belanja pasar/warung, masak/kulkas, kesehatan keluarga, antar-jemput/perjalanan, belajar anak, iuran warga/kos, atau usaha kecil harian).
@@ -1036,6 +1086,139 @@ async function startServer() {
   });
 
   app.post(
+    '/api/admin/tasks',
+    requireAdminAuth,
+    (req: AuthenticatedRequest, res: Response) => {
+      const body = (req.body ?? {}) as {
+        problem?: Record<string, unknown>;
+        solution?: Record<string, unknown>;
+        targetUser?: Record<string, unknown>;
+        deviceTarget?: Record<string, unknown>;
+      };
+
+      const probTitle = cleanText(body.problem?.title, 80);
+      const probDesc = cleanText(body.problem?.description, 240);
+      const solTitle = cleanText(body.solution?.title, 80);
+      const solHowTo = cleanText(body.solution?.howToBuild ?? body.solution?.description, 240);
+      const userTitle = cleanText(body.targetUser?.title, 80);
+      const userDesc = cleanText(body.targetUser?.description, 240);
+      const devTitle = cleanText(body.deviceTarget?.title, 80);
+      const devDesc = cleanText(body.deviceTarget?.description, 240);
+      const devPresetId = cleanText(body.deviceTarget?.presetId, 40);
+
+      if (
+        !probTitle ||
+        !probDesc ||
+        !solTitle ||
+        !solHowTo ||
+        !userTitle ||
+        !userDesc ||
+        !devTitle ||
+        !devDesc
+      ) {
+        res.status(400).json({
+          error: 'Semua 4 langkah (Problem, App, User, Device) wajib diisi lengkap secara berurutan.',
+        });
+        return;
+      }
+
+      const rawFeatures = Array.isArray(body.solution?.coreFeatures)
+        ? body.solution?.coreFeatures
+        : typeof body.solution?.coreFeatures === 'string'
+          ? body.solution.coreFeatures.split(/\r?\n|,/)
+          : [];
+      const coreFeatures = rawFeatures
+        .map((f) => cleanText(f, 90))
+        .filter(Boolean)
+        .slice(0, 4);
+      if (coreFeatures.length === 0) {
+        coreFeatures.push('Langkah praktis berbasis AI yang langsung mudah dipakai');
+      }
+
+      const matchedPresetDevice = DEFAULT_CATEGORIES.deviceTargets.find(
+        (d) => d.id === devPresetId
+      );
+
+      const newTask: StoredTaskBundle = {
+        id: slugifyId(probTitle, 'task'),
+        problem: {
+          id: slugifyId(probTitle, 'prob'),
+          icon: 'home',
+          title: probTitle,
+          domain: 'Kehidupan Sehari-hari',
+          shortNoun: probTitle.toLowerCase(),
+          description: probDesc,
+        },
+        solution: {
+          id: slugifyId(solTitle, 'sol'),
+          icon: 'camera',
+          title: solTitle,
+          techStack: 'Praktis · Bantuan AI',
+          howToBuild: solHowTo,
+          coreFeatures,
+        },
+        targetUser: {
+          id: slugifyId(userTitle, 'user'),
+          icon: 'users',
+          title: userTitle,
+          shortPersona: userTitle.toLowerCase(),
+          context: 'Kebutuhan Harian · Praktis',
+          description: userDesc,
+        },
+        deviceTarget: matchedPresetDevice
+          ? {
+              ...matchedPresetDevice,
+              title: devTitle,
+              description: devDesc,
+            }
+          : {
+              id: slugifyId(devTitle, 'dev'),
+              icon: 'smartphone',
+              title: devTitle,
+              badgeLabel: 'Layar Fleksibel',
+              layoutHint: 'Tampilan Bersih · Mudah Dipakai',
+              description: devDesc,
+            },
+      };
+
+      const store = loadCategories();
+      const updatedStore = deriveStoreFromTasks([newTask, ...store.tasks]);
+      saveCategories(updatedStore);
+      res.status(201).json({ task: newTask, categories: updatedStore });
+    }
+  );
+
+  app.delete(
+    '/api/admin/tasks/:id',
+    requireAdminAuth,
+    (req: AuthenticatedRequest, res: Response) => {
+      const taskId = cleanText(req.params.id, 80);
+      if (!taskId) {
+        res.status(400).json({ error: 'ID paket tugas tidak valid.' });
+        return;
+      }
+
+      const store = loadCategories();
+      if (store.tasks.length <= 1) {
+        res.status(400).json({
+          error: 'Minimal harus tersisa 1 paket tugas agar mesin ide tetap berjalan.',
+        });
+        return;
+      }
+
+      const nextTasks = store.tasks.filter((t) => t.id !== taskId);
+      if (nextTasks.length === store.tasks.length) {
+        res.status(404).json({ error: 'Paket tugas tidak ditemukan.' });
+        return;
+      }
+
+      const updatedStore = deriveStoreFromTasks(nextTasks);
+      saveCategories(updatedStore);
+      res.json({ categories: updatedStore });
+    }
+  );
+
+  app.post(
     '/api/admin/categories/:category',
     requireAdminAuth,
     (req: AuthenticatedRequest, res: Response) => {
@@ -1044,138 +1227,9 @@ async function startServer() {
         res.status(400).json({ error: 'Kategori tidak valid.' });
         return;
       }
-
-      const body = (req.body ?? {}) as Record<string, unknown>;
-      const title = cleanText(body.title, 80);
-      const description = cleanText(body.description, 240);
-      const rawIcon = cleanText(body.icon, 40);
-      const isValidIcon = (ALL_VALID_ICONS as readonly string[]).includes(rawIcon);
-
-      if (!title || !description) {
-        res.status(400).json({ error: 'Judul dan deskripsi item wajib diisi.' });
-        return;
-      }
-
-      const store = loadCategories();
-      let createdItem:
-        | StoredProblemItem
-        | StoredSolutionItem
-        | StoredTargetUserItem
-        | StoredDeviceTargetItem;
-
-      if (category === 'problems') {
-        const domain = cleanText(body.domain, 60) || 'Kehidupan Sehari-hari';
-        const shortNoun = cleanText(body.shortNoun, 120) || title.toLowerCase();
-        const item: StoredProblemItem = {
-          id: slugifyId(title, 'prob'),
-          icon: isValidIcon ? rawIcon : 'home',
-          title,
-          domain,
-          shortNoun,
-          description,
-        };
-        store.problems.unshift(item);
-        createdItem = item;
-      } else if (category === 'solutions') {
-        const techStack = cleanText(body.techStack, 70) || 'Praktis · Bantuan AI';
-        const rawFeatures = Array.isArray(body.coreFeatures)
-          ? body.coreFeatures
-          : typeof body.coreFeatures === 'string'
-            ? body.coreFeatures.split(/\r?\n|,/)
-            : [];
-        const coreFeatures = rawFeatures
-          .map((f) => cleanText(f, 90))
-          .filter(Boolean)
-          .slice(0, 4);
-        if (coreFeatures.length === 0) {
-          coreFeatures.push('Langkah praktis berbasis AI untuk pengguna');
-        }
-        const item: StoredSolutionItem = {
-          id: slugifyId(title, 'sol'),
-          icon: isValidIcon ? rawIcon : 'camera',
-          title,
-          techStack,
-          howToBuild: description,
-          coreFeatures,
-        };
-        store.solutions.unshift(item);
-        createdItem = item;
-      } else if (category === 'targetUsers') {
-        const context = cleanText(body.context, 70) || 'Kebutuhan Harian · Praktis';
-        const shortPersona = cleanText(body.shortPersona, 80) || title.toLowerCase();
-        const item: StoredTargetUserItem = {
-          id: slugifyId(title, 'user'),
-          icon: isValidIcon ? rawIcon : 'users',
-          title,
-          shortPersona,
-          context,
-          description,
-        };
-        store.targetUsers.unshift(item);
-        createdItem = item;
-      } else {
-        const badgeLabel = cleanText(body.badgeLabel, 50) || 'Layar Fleksibel';
-        const layoutHint = cleanText(body.layoutHint, 70) || 'Tampilan Bersih · Mudah Dipakai';
-        const item: StoredDeviceTargetItem = {
-          id: slugifyId(title, 'dev'),
-          icon: isValidIcon ? rawIcon : 'smartphone',
-          title,
-          badgeLabel,
-          layoutHint,
-          description,
-        };
-        store.deviceTargets.unshift(item);
-        createdItem = item;
-      }
-
-      saveCategories(store);
-      res.status(201).json({ item: createdItem, categories: store });
-    }
-  );
-
-  app.delete(
-    '/api/admin/categories/:category/:id',
-    requireAdminAuth,
-    (req: AuthenticatedRequest, res: Response) => {
-      const { category, id } = req.params;
-      if (!isValidCategoryKey(category)) {
-        res.status(400).json({ error: 'Kategori tidak valid.' });
-        return;
-      }
-
-      const itemId = cleanText(id, 80);
-      if (!itemId) {
-        res.status(400).json({ error: 'ID item tidak valid.' });
-        return;
-      }
-
-      const store = loadCategories();
-      const list = store[category];
-      if (list.length <= 1) {
-        res.status(400).json({
-          error: 'Minimal harus tersisa 1 item di setiap kategori agar mesin ide tetap berjalan.',
-        });
-        return;
-      }
-
-      const nextList = list.filter((entry) => entry.id !== itemId);
-      if (nextList.length === list.length) {
-        res.status(404).json({ error: 'Item tidak ditemukan.' });
-        return;
-      }
-
-      if (category === 'problems') {
-        store.problems = nextList as StoredProblemItem[];
-      } else if (category === 'solutions') {
-        store.solutions = nextList as StoredSolutionItem[];
-      } else if (category === 'targetUsers') {
-        store.targetUsers = nextList as StoredTargetUserItem[];
-      } else {
-        store.deviceTargets = nextList as StoredDeviceTargetItem[];
-      }
-
-      saveCategories(store);
-      res.json({ categories: store });
+      res.status(400).json({
+        error: 'Gunakan endpoint paket tugas (/api/admin/tasks) agar Problem, App, User, dan Device tetap berkesinambungan.',
+      });
     }
   );
 

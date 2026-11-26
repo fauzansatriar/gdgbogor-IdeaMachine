@@ -42,19 +42,34 @@ export function CoverView({
 }: CoverViewProps) {
   return (
     <div className="relative overflow-hidden flex-1 min-h-0 flex items-center justify-center px-4 sm:px-8 py-6 bg-white">
-      {/* Subtle Google Brand Edge Gradients (strictly confined to outer edges/corners) */}
+      {/* Curved Bottom-Edge Horizon Glow Gradient in Google Brand Colors */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 z-0"
-        style={{
-          backgroundImage: [
-            'radial-gradient(42% 46% at 0% 0%, rgba(66, 133, 244, 0.16) 0%, rgba(66, 133, 244, 0.05) 48%, rgba(255, 255, 255, 0) 82%)',
-            'radial-gradient(40% 44% at 100% 0%, rgba(234, 67, 53, 0.15) 0%, rgba(234, 67, 53, 0.04) 46%, rgba(255, 255, 255, 0) 80%)',
-            'radial-gradient(42% 46% at 0% 100%, rgba(251, 188, 4, 0.17) 0%, rgba(251, 188, 4, 0.05) 46%, rgba(255, 255, 255, 0) 80%)',
-            'radial-gradient(42% 46% at 100% 100%, rgba(52, 168, 83, 0.16) 0%, rgba(52, 168, 83, 0.05) 48%, rgba(255, 255, 255, 0) 82%)',
-          ].join(', '),
-        }}
-      />
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-[56%] z-0 overflow-hidden"
+      >
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              'linear-gradient(90deg, rgba(66, 133, 244, 0.44) 0%, rgba(234, 67, 53, 0.42) 34%, rgba(251, 188, 4, 0.42) 68%, rgba(52, 168, 83, 0.44) 100%)',
+            WebkitMaskImage:
+              'radial-gradient(125% 96% at 50% 108%, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.78) 34%, rgba(0, 0, 0, 0.28) 60%, rgba(0, 0, 0, 0) 84%)',
+            maskImage:
+              'radial-gradient(125% 96% at 50% 108%, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.78) 34%, rgba(0, 0, 0, 0.28) 60%, rgba(0, 0, 0, 0) 84%)',
+          }}
+        />
+        <div
+          className="absolute inset-x-[-8%] bottom-[-24%] h-[78%] blur-2xl"
+          style={{
+            backgroundImage: [
+              'radial-gradient(36% 65% at 18% 92%, rgba(66, 133, 244, 0.48) 0%, rgba(66, 133, 244, 0) 75%)',
+              'radial-gradient(34% 68% at 44% 96%, rgba(234, 67, 53, 0.45) 0%, rgba(234, 67, 53, 0) 75%)',
+              'radial-gradient(34% 66% at 68% 94%, rgba(251, 188, 4, 0.44) 0%, rgba(251, 188, 4, 0) 75%)',
+              'radial-gradient(36% 65% at 88% 92%, rgba(52, 168, 83, 0.46) 0%, rgba(52, 168, 83, 0) 75%)',
+            ].join(', '),
+          }}
+        />
+      </div>
 
       {onOpenAdmin && (
         <button
