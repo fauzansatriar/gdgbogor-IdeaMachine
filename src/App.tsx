@@ -234,6 +234,12 @@ export default function App() {
   const nameInputRef = useRef<HTMLInputElement | null>(null);
   const spinRequestIdRef = useRef(0);
   const spinAbortRef = useRef<AbortController | null>(null);
+  const prefetchedMissionRef = useRef<{
+    mission: ContextualMission;
+    createdAt: number;
+  } | null>(null);
+  const prefetchPromiseRef = useRef<Promise<ContextualMission | null> | null>(null);
+  const prefetchAbortRef = useRef<AbortController | null>(null);
   const seenIdeasRef = useRef<string[]>(
     initialStored.participants
       .flatMap((slot) => {
@@ -271,6 +277,7 @@ export default function App() {
   useEffect(() => {
     return () => {
       spinAbortRef.current?.abort();
+      prefetchAbortRef.current?.abort();
       timersRef.current.forEach((id) => {
         window.clearInterval(id);
         window.clearTimeout(id);
@@ -335,6 +342,184 @@ export default function App() {
     timersRef.current = [];
   }, []);
 
+  const requestMissionFromGemini = useCallback(
+    async (
+      previousIdeas: string[],
+      participantName?: string,
+      externalSignal?: AbortSignal
+    ): Promise<ContextualMission> => {
+      const retryDelays = [500, 1200, 0];
+      let lastError: Error | null = null;
+
+      for (let attemptIdx = 0; attemptIdx < retryDelays.length; attemptIdx++) {
+        if (externalSignal?.aborted) {
+          throw new DOMException('Aborted', 'AbortError');
+        }
+
+        const attemptController = new AbortController();
+        const onExternalAbort = () => attemptController.abort();
+        externalSignal?.addEventListener('abort', onExternalAbort, { once: true });
+
+        const timeoutId = window.setTimeout(() => {
+          attemptController.abort();
+        }, 24000);
+
+        try {
+          const response = await fetch('/api/generate-mission', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            signal: attemptController.signal,
+            body: JSON.stringify({
+              previousIdeas,
+              participantName: participantName || undefined,
+            }),
+          });
+
+          const contentType = response.headers.get('content-type') || '';
+          const data = (
+            contentType.includes('application/json')
+              ? await response.json().catch(() => ({}))
+              : {}
+          ) as {
+            mission?: {
+              problem: ContextualMission['problem'];
+              targetUser: ContextualMission['targetUser'];
+              solution: ContextualMission['solution'];
+              deviceId: string;
+            };
+            error?: string;
+          };
+
+          if (response.ok && data.mission) {
+            const resolvedDevice = getDeviceById(data.mission.deviceId);
+            return {
+              problem: data.mission.problem,
+              targetUser: data.mission.targetUser,
+              solution: data.mission.solution,
+              device: resolvedDevice,
+            };
+          }
+
+          const message =
+            data.error || 'Gagal membuat ide baru dari Gemini. Silakan coba Spin lagi.';
+          lastError = new Error(message);
+
+          const isConfigOrAuthError =
+            response.status === 400 ||
+            response.status === 401 ||
+            response.status === 403 ||
+            response.status === 404 ||
+            message.includes('Secrets') ||
+            message.includes('API');
+
+          if (isConfigOrAuthError) {
+            throw lastError;
+          }
+
+          const isRetryableStatus =
+            response.status === 408 ||
+            response.status === 429 ||
+            response.status >= 500;
+
+          if (!isRetryableStatus) {
+            throw lastError;
+          }
+        } catch (err: unknown) {
+          if (externalSignal?.aborted) {
+            throw err;
+          }
+          lastError =
+            err instanceof Error
+              ? err.name === 'AbortError'
+                ? new Error('Koneksi ke Gemini melebihi batas waktu. Mencoba ulang...')
+                : err
+              : new Error('Gagal terhubung ke Gemini. Coba spin ulang sebentar lagi.');
+
+          const isFatalAuth =
+            lastError.message.includes('Secrets') ||
+            lastError.message.includes('Kunci API Gemini');
+          if (isFatalAuth) {
+            throw lastError;
+          }
+        } finally {
+          window.clearTimeout(timeoutId);
+          externalSignal?.removeEventListener('abort', onExternalAbort);
+        }
+
+        const backoff = retryDelays[attemptIdx];
+        if (backoff > 0 && !externalSignal?.aborted) {
+          await new Promise<void>((resolve) => window.setTimeout(resolve, backoff));
+        }
+      }
+
+      throw (
+        lastError ??
+        new Error('Gagal membuat ide baru dari Gemini. Silakan coba Spin lagi.')
+      );
+    },
+    []
+  );
+
+  const warmPrefetchMission = useCallback(() => {
+    if (allSlotsLocked || urlBriefPayload) return;
+
+    const existing = prefetchedMissionRef.current;
+    const isFresh = existing && Date.now() - existing.createdAt < 15 * 60 * 1000;
+    const isDuplicate =
+      existing &&
+      (seenIdeasRef.current.includes(existing.mission.problem.title) ||
+        seenIdeasRef.current.includes(existing.mission.solution.title));
+
+    if (isFresh && !isDuplicate) return;
+    if (isDuplicate) {
+      prefetchedMissionRef.current = null;
+    }
+    if (prefetchPromiseRef.current) return;
+
+    const controller = new AbortController();
+    prefetchAbortRef.current = controller;
+
+    const promise = requestMissionFromGemini(
+      seenIdeasRef.current,
+      undefined,
+      controller.signal
+    )
+      .then((mission) => {
+        if (!controller.signal.aborted) {
+          prefetchedMissionRef.current = { mission, createdAt: Date.now() };
+        }
+        return mission;
+      })
+      .catch(() => null)
+      .finally(() => {
+        if (prefetchPromiseRef.current === promise) {
+          prefetchPromiseRef.current = null;
+        }
+      });
+
+    prefetchPromiseRef.current = promise;
+  }, [allSlotsLocked, requestMissionFromGemini, urlBriefPayload]);
+
+  useEffect(() => {
+    if (
+      activePage === 'machine' &&
+      !allSlotsLocked &&
+      !isAnySpinning &&
+      !isSettlingToReveal &&
+      (!hasSpun || isRevealReady)
+    ) {
+      warmPrefetchMission();
+    }
+  }, [
+    activePage,
+    allSlotsLocked,
+    hasSpun,
+    isAnySpinning,
+    isRevealReady,
+    isSettlingToReveal,
+    warmPrefetchMission,
+  ]);
+
   const spinAll = useCallback(async () => {
     if (isAnySpinning || isSettlingToReveal) return;
 
@@ -388,56 +573,45 @@ export default function App() {
     });
 
     try {
-      const fetchMission = async () =>
-        fetch('/api/generate-mission', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          signal: abortController.signal,
-          body: JSON.stringify({
-            previousIdeas: seenIdeasRef.current,
-            participantName: participantNameInput.trim() || undefined,
-          }),
-        });
+      let resolvedMission: ContextualMission | null = null;
 
-      let response = await fetchMission();
-      if (
-        (response.status === 502 || response.status === 503 || response.status === 504) &&
-        !abortController.signal.aborted
-      ) {
-        await new Promise((r) => window.setTimeout(r, 700));
-        response = await fetchMission();
+      const cached = prefetchedMissionRef.current;
+      const isCacheFresh = cached && Date.now() - cached.createdAt < 15 * 60 * 1000;
+      const isCacheSeen =
+        cached &&
+        (seenIdeasRef.current.includes(cached.mission.problem.title) ||
+          seenIdeasRef.current.includes(cached.mission.solution.title));
+
+      if (cached && isCacheFresh && !isCacheSeen) {
+        prefetchedMissionRef.current = null;
+        resolvedMission = cached.mission;
+      } else {
+        prefetchedMissionRef.current = null;
+        if (prefetchPromiseRef.current) {
+          const inFlightMission = await prefetchPromiseRef.current;
+          if (
+            inFlightMission &&
+            !abortController.signal.aborted &&
+            !seenIdeasRef.current.includes(inFlightMission.problem.title) &&
+            !seenIdeasRef.current.includes(inFlightMission.solution.title)
+          ) {
+            prefetchedMissionRef.current = null;
+            resolvedMission = inFlightMission;
+          }
+        }
       }
 
-      const contentType = response.headers.get('content-type') || '';
-      const data = (
-        contentType.includes('application/json')
-          ? await response.json().catch(() => ({}))
-          : {}
-      ) as {
-        mission?: {
-          problem: ContextualMission['problem'];
-          targetUser: ContextualMission['targetUser'];
-          solution: ContextualMission['solution'];
-          deviceId: string;
-        };
-        error?: string;
-      };
-
-      if (!response.ok || !data.mission) {
-        throw new Error(
-          data.error || 'Gagal membuat ide baru dari Gemini. Silakan coba Spin lagi.'
+      if (!resolvedMission) {
+        resolvedMission = await requestMissionFromGemini(
+          seenIdeasRef.current,
+          participantNameInput.trim() || undefined,
+          abortController.signal
         );
       }
 
       if (requestId !== spinRequestIdRef.current) return;
 
-      const resolvedDevice = getDeviceById(data.mission.deviceId);
-      const resolvedMission: ContextualMission = {
-        problem: data.mission.problem,
-        targetUser: data.mission.targetUser,
-        solution: data.mission.solution,
-        device: resolvedDevice,
-      };
+      const resolvedDevice = resolvedMission.device;
 
       seenIdeasRef.current = Array.from(
         new Set([
@@ -528,6 +702,7 @@ export default function App() {
     isAnySpinning,
     isSettlingToReveal,
     participantNameInput,
+    requestMissionFromGemini,
     showSnackbar,
   ]);
 
@@ -630,6 +805,9 @@ export default function App() {
 
   const handleResetAll = () => {
     spinAbortRef.current?.abort();
+    prefetchAbortRef.current?.abort();
+    prefetchedMissionRef.current = null;
+    prefetchPromiseRef.current = null;
     clearSpinTimers();
     seenIdeasRef.current = [];
     setSpinningCols([false, false, false, false]);
@@ -1244,7 +1422,7 @@ export default function App() {
                       ? 'Meracik Ide dengan Gemini...'
                       : isSettlingToReveal
                         ? 'Membuka Hasil...'
-                        : 'Spin Buka Kejutan (SPACE)'}
+                        : 'Spin Sekarang'}
                   </span>
                 </button>
               </div>
@@ -1259,7 +1437,7 @@ export default function App() {
                   }`}
                 >
                   <Dices className="w-4 h-4 text-[#1A73E8]" aria-hidden="true" />
-                  <span>Spin Ulang (SPACE)</span>
+                  <span>Spin Ulang</span>
                 </button>
               </div>
             )}

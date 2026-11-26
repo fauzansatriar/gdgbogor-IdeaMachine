@@ -22,14 +22,14 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Smooth Eased Slot Reel Glide (No Jitter or Smudge Blur) */
+/* Smooth Eased Slot Reel Glide with Directional Motion-Blur Stretch */
 @keyframes slot-tick-glide {
   0% {
-    transform: translate3d(0, 14px, 0);
-    opacity: 0.55;
+    transform: translate3d(0, 20px, 0) scaleY(1.08);
+    opacity: 0.52;
   }
   100% {
-    transform: translate3d(0, 0, 0);
+    transform: translate3d(0, 0, 0) scaleY(1);
     opacity: 1;
   }
 }

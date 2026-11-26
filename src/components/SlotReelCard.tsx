@@ -118,6 +118,8 @@ export function SlotReelCard({
   onSwipeRight,
 }: SlotReelCardProps) {
   const cardRef = useRef<HTMLElement | null>(null);
+  const motionBlurReactId = useId();
+  const motionBlurFilterId = `reel-motion-blur-${motionBlurReactId.replace(/:/g, '')}`;
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const [swipeOffsetX, setSwipeOffsetX] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
@@ -303,43 +305,53 @@ export function SlotReelCard({
           </h2>
         </div>
 
-      {/* Center Content: Blended Seamless Rolling Aperture & Eased Settle */}
-      <div className="relative z-10 flex-1 min-h-0 flex flex-col justify-center my-2">
+      {/* Center Content: Blended Seamless Rolling Aperture + Directional Motion Blur */}
+      <div className="relative z-10 flex-1 min-h-0 flex flex-col justify-center">
+        {/* SVG Directional Vertical Motion Blur Filter (X=0, Y=3.2) */}
+        <svg className="absolute w-0 h-0 pointer-events-none" aria-hidden="true">
+          <defs>
+            <filter id={motionBlurFilterId} x="-10%" y="-25%" width="120%" height="150%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="0 3.2" />
+            </filter>
+          </defs>
+        </svg>
+
         <AnimatePresence mode="wait">
           {isSpinning ? (
             <motion.div
               key="spinning"
               initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.97, transition: { duration: 0.18, ease: [0.16, 1, 0.3, 1] } }}
-              transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-              className="relative flex-1 min-h-0 flex flex-col justify-center overflow-hidden"
+              exit={{ opacity: 0, scale: 0.97, transition: { duration: 0.2, ease: [0.16, 1, 0.3, 1] } }}
+              transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+              style={{
+                maskImage:
+                  'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.4) 18%, #000 36%, #000 64%, rgba(0,0,0,0.4) 82%, transparent 100%)',
+                WebkitMaskImage:
+                  'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.4) 18%, #000 36%, #000 64%, rgba(0,0,0,0.4) 82%, transparent 100%)',
+              }}
+              className="relative flex-1 min-h-0 flex flex-col justify-center"
             >
-              {/* Feathered Radial Mist Blending Into Card Gradient (Zero Boxy Edges) */}
+              {/* Soft Feathered Radial Mist (Fades Completely Before All 4 Edges — Zero Seam) */}
               <div
-                className="pointer-events-none absolute -inset-x-4 inset-y-0"
+                className="pointer-events-none absolute inset-0"
                 style={{
                   background:
-                    'radial-gradient(ellipse 88% 68% at 50% 50%, rgba(255,255,255,0.78) 0%, rgba(255,255,255,0.44) 48%, rgba(255,255,255,0) 84%)',
+                    'radial-gradient(ellipse 54% 38% at 50% 50%, rgba(255,255,255,0.82) 0%, rgba(255,255,255,0.44) 44%, rgba(255,255,255,0) 85%)',
                 }}
                 aria-hidden="true"
               />
 
-              {/* Vertically Masked Smooth Rolling Strip */}
+              {/* Smooth Rolling Strip with Vertical Directional Motion Blur */}
               <div
-                style={{
-                  maskImage:
-                    'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.45) 18%, #000 36%, #000 64%, rgba(0,0,0,0.45) 82%, transparent 100%)',
-                  WebkitMaskImage:
-                    'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.45) 18%, #000 36%, #000 64%, rgba(0,0,0,0.45) 82%, transparent 100%)',
-                }}
-                className="relative z-10 py-3 overflow-hidden"
+                className="relative z-10 py-3"
+                style={{ filter: `url(#${motionBlurFilterId})` }}
               >
                 <div
                   key={`${item.key}-${item.title}`}
                   className="reel-tick-glide flex flex-col items-center justify-center gap-2.5 text-center select-none px-2"
                 >
-                  <div className="text-[11px] font-semibold text-[#475569]/70 truncate max-w-full">
+                  <div className="text-[11px] font-semibold text-[#475569]/75 truncate max-w-full">
                     {item.prevTitle ?? 'Mengacak...'}
                   </div>
 
@@ -356,7 +368,7 @@ export function SlotReelCard({
                     </div>
                   </div>
 
-                  <div className="text-[11px] font-semibold text-[#475569]/70 truncate max-w-full">
+                  <div className="text-[11px] font-semibold text-[#475569]/75 truncate max-w-full">
                     {item.nextTitle ?? 'Mengacak...'}
                   </div>
                 </div>
@@ -365,11 +377,11 @@ export function SlotReelCard({
           ) : isRevealed ? (
             <motion.div
               key={`settled-${item.key}`}
-              initial={{ opacity: 0, y: 16, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
+              initial={{ opacity: 0, y: 18, scale: 0.96, filter: 'blur(4px)' }}
+              animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
               exit={{ opacity: 0, y: -10, scale: 0.97 }}
-              transition={{ duration: 0.48, ease: [0.16, 1, 0.3, 1] }}
-              className="flex-1 min-h-0 flex flex-col justify-center"
+              transition={{ duration: 0.52, ease: [0.16, 1, 0.3, 1] }}
+              className="flex-1 min-h-0 flex flex-col justify-center my-2"
             >
               <div className="rounded-2xl bg-white/82 backdrop-blur-md p-3.5 shadow-[0_12px_32px_rgba(15,23,42,0.08)] space-y-1.5">
                 <div className="flex items-start gap-2.5">

@@ -103,20 +103,92 @@ function extractErrorStatus(error: unknown): number {
 }
 
 function isTransientError(status: number, message: string): boolean {
+  const upper = message.toUpperCase();
   return (
+    status === 408 ||
     status === 429 ||
     status === 500 ||
     status === 502 ||
     status === 503 ||
     status === 504 ||
-    message.includes('UNAVAILABLE') ||
-    message.includes('high demand') ||
-    message.includes('RESOURCE_EXHAUSTED')
+    upper.includes('UNAVAILABLE') ||
+    upper.includes('HIGH DEMAND') ||
+    upper.includes('RESOURCE_EXHAUSTED') ||
+    upper.includes('DEADLINE_EXCEEDED') ||
+    upper.includes('INTERNAL') ||
+    upper.includes('TIMEOUT') ||
+    upper.includes('TIMED OUT') ||
+    upper.includes('ECONNRESET') ||
+    upper.includes('ETIMEDOUT') ||
+    upper.includes('FETCH FAILED') ||
+    upper.includes('SYNTAXERROR')
   );
 }
 
 function delayMs(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(Object.assign(new Error(`${label} timed out after ${timeoutMs}ms`), { statusCode: 504 }));
+    }, timeoutMs);
+
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      }
+    );
+  });
+}
+
+function parseMissionJson(rawText: string) {
+  const cleaned = rawText
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/, '')
+    .trim();
+
+  const firstBrace = cleaned.indexOf('{');
+  const lastBrace = cleaned.lastIndexOf('}');
+  const jsonCandidate =
+    firstBrace >= 0 && lastBrace > firstBrace
+      ? cleaned.slice(firstBrace, lastBrace + 1)
+      : cleaned;
+
+  const parsed = JSON.parse(jsonCandidate) as {
+    problemTitle?: string;
+    problemDomain?: string;
+    problemDescription?: string;
+    problemIcon?: (typeof VALID_PROBLEM_ICONS)[number];
+    userTitle?: string;
+    userContext?: string;
+    userDescription?: string;
+    userIcon?: (typeof VALID_USER_ICONS)[number];
+    solutionTitle?: string;
+    solutionTag?: string;
+    solutionHowTo?: string;
+    solutionFeatures?: string[];
+    solutionIcon?: (typeof VALID_SOLUTION_ICONS)[number];
+    deviceId?: (typeof VALID_DEVICE_IDS)[number];
+  };
+
+  if (
+    !parsed ||
+    !String(parsed.problemTitle || '').trim() ||
+    !String(parsed.userTitle || '').trim() ||
+    !String(parsed.solutionTitle || '').trim() ||
+    !String(parsed.solutionHowTo || '').trim()
+  ) {
+    throw new Error('Gemini returned incomplete mission fields.');
+  }
+
+  return parsed;
 }
 
 async function generateEverydayMission(
@@ -201,69 +273,69 @@ Hasilkan 1 tantangan aplikasi kebutuhan sehari-hari yang unik, kreatif, praktis,
   const modelAttempts: Array<{
     model: 'gemini-4-hydrogen' | 'gemini-3.1-flash-lite';
     thinkingLevel: ThinkingLevel;
+    timeoutMs: number;
     backoffMs: number;
   }> = [
-    { model: 'gemini-4-hydrogen', thinkingLevel: ThinkingLevel.LOW, backoffMs: 250 },
-    { model: 'gemini-3.1-flash-lite', thinkingLevel: ThinkingLevel.MINIMAL, backoffMs: 500 },
-    { model: 'gemini-4-hydrogen', thinkingLevel: ThinkingLevel.LOW, backoffMs: 0 },
+    { model: 'gemini-4-hydrogen', thinkingLevel: ThinkingLevel.LOW, timeoutMs: 10000, backoffMs: 200 },
+    { model: 'gemini-3.1-flash-lite', thinkingLevel: ThinkingLevel.MINIMAL, timeoutMs: 9000, backoffMs: 350 },
+    { model: 'gemini-4-hydrogen', thinkingLevel: ThinkingLevel.LOW, timeoutMs: 11000, backoffMs: 500 },
+    { model: 'gemini-3.1-flash-lite', thinkingLevel: ThinkingLevel.MINIMAL, timeoutMs: 10000, backoffMs: 0 },
   ];
 
-  let rawText = '';
+  let parsed: ReturnType<typeof parseMissionJson> | null = null;
   let lastError: unknown = null;
 
   for (const attempt of modelAttempts) {
     try {
-      const response = await ai.models.generateContent({
-        model: attempt.model,
-        contents: userPrompt,
-        config: {
-          systemInstruction,
-          thinkingConfig: { thinkingLevel: attempt.thinkingLevel },
-          responseMimeType: 'application/json',
-          responseSchema: schema,
-        },
-      });
+      const response = await withTimeout(
+        ai.models.generateContent({
+          model: attempt.model,
+          contents: userPrompt,
+          config: {
+            systemInstruction,
+            thinkingConfig: { thinkingLevel: attempt.thinkingLevel },
+            responseMimeType: 'application/json',
+            responseSchema: schema,
+          },
+        }),
+        attempt.timeoutMs,
+        attempt.model
+      );
 
-      rawText = (response.text ?? '')
-        .replace(/^```(?:json)?\s*/i, '')
-        .replace(/\s*```$/, '')
-        .trim();
-
-      if (rawText) {
-        break;
+      const rawText = response.text ?? '';
+      if (!rawText.trim()) {
+        throw Object.assign(new Error('Gemini returned empty response.'), { statusCode: 503 });
       }
-      lastError = new Error('Gemini tidak mengembalikan data misi.');
+
+      parsed = parseMissionJson(rawText);
+      break;
     } catch (err: unknown) {
       lastError = err;
       const errStatus = extractErrorStatus(err);
       const errMsg = err instanceof Error ? err.message : String(err);
-      if (!isTransientError(errStatus, errMsg) || attempt.backoffMs === 0) {
-        throw err;
+      const isAuthOrConfigErr =
+        errStatus === 400 ||
+        errStatus === 401 ||
+        errStatus === 403 ||
+        errMsg.includes('API_KEY');
+
+      if (isAuthOrConfigErr || attempt.backoffMs === 0) {
+        if (!isTransientError(errStatus, errMsg) && attempt.backoffMs === 0) {
+          throw err;
+        }
+        if (isAuthOrConfigErr) {
+          throw err;
+        }
       }
-      await delayMs(attempt.backoffMs);
+      if (attempt.backoffMs > 0) {
+        await delayMs(attempt.backoffMs);
+      }
     }
   }
 
-  if (!rawText) {
+  if (!parsed) {
     throw lastError ?? new Error('Gemini tidak mengembalikan data misi. Silakan coba spin ulang.');
   }
-
-  const parsed = JSON.parse(rawText) as {
-    problemTitle: string;
-    problemDomain: string;
-    problemDescription: string;
-    problemIcon: (typeof VALID_PROBLEM_ICONS)[number];
-    userTitle: string;
-    userContext: string;
-    userDescription: string;
-    userIcon: (typeof VALID_USER_ICONS)[number];
-    solutionTitle: string;
-    solutionTag: string;
-    solutionHowTo: string;
-    solutionFeatures: string[];
-    solutionIcon: (typeof VALID_SOLUTION_ICONS)[number];
-    deviceId: (typeof VALID_DEVICE_IDS)[number];
-  };
 
   const features = Array.isArray(parsed.solutionFeatures)
     ? parsed.solutionFeatures.map((f) => String(f).trim()).filter(Boolean).slice(0, 3)
@@ -278,7 +350,7 @@ Hasilkan 1 tantangan aplikasi kebutuhan sehari-hari yang unik, kreatif, praktis,
   return {
     problem: {
       id: `ai-prob-${stamp}`,
-      icon: VALID_PROBLEM_ICONS.includes(parsed.problemIcon)
+      icon: parsed.problemIcon && VALID_PROBLEM_ICONS.includes(parsed.problemIcon)
         ? parsed.problemIcon
         : 'home',
       title: String(parsed.problemTitle || '').trim(),
@@ -288,7 +360,9 @@ Hasilkan 1 tantangan aplikasi kebutuhan sehari-hari yang unik, kreatif, praktis,
     },
     targetUser: {
       id: `ai-user-${stamp}`,
-      icon: VALID_USER_ICONS.includes(parsed.userIcon) ? parsed.userIcon : 'users',
+      icon: parsed.userIcon && VALID_USER_ICONS.includes(parsed.userIcon)
+        ? parsed.userIcon
+        : 'users',
       title: String(parsed.userTitle || '').trim(),
       shortPersona: String(parsed.userTitle || '').trim().toLowerCase(),
       context: String(parsed.userContext || 'Kebutuhan Harian · Praktis').trim(),
@@ -297,9 +371,9 @@ Hasilkan 1 tantangan aplikasi kebutuhan sehari-hari yang unik, kreatif, praktis,
     },
     solution: {
       id: `ai-sol-${stamp}`,
-      icon: VALID_SOLUTION_ICONS.includes(parsed.solutionIcon)
+      icon: parsed.solutionIcon && VALID_SOLUTION_ICONS.includes(parsed.solutionIcon)
         ? parsed.solutionIcon
-        : 'smartphone',
+        : 'camera',
       title: String(parsed.solutionTitle || '').trim(),
       techStack: String(parsed.solutionTag || 'Praktis · Bantuan AI').trim(),
       howToBuild: String(parsed.solutionHowTo || '').trim(),
@@ -307,7 +381,7 @@ Hasilkan 1 tantangan aplikasi kebutuhan sehari-hari yang unik, kreatif, praktis,
       contextualHowToBuild: String(parsed.solutionHowTo || '').trim(),
       contextualFeatures: features,
     },
-    deviceId: VALID_DEVICE_IDS.includes(parsed.deviceId)
+    deviceId: parsed.deviceId && VALID_DEVICE_IDS.includes(parsed.deviceId)
       ? parsed.deviceId
       : 'mobile',
   };
@@ -316,6 +390,10 @@ Hasilkan 1 tantangan aplikasi kebutuhan sehari-hari yang unik, kreatif, praktis,
 async function startServer() {
   const app = express();
   app.use(express.json({ limit: '32kb' }));
+
+  app.get('/api/health', (_req: Request, res: Response) => {
+    res.json({ ok: true });
+  });
 
   app.post('/api/generate-mission', async (req: Request, res: Response) => {
     try {
