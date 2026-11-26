@@ -13,7 +13,7 @@ import {
   VolumeX,
   X,
 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import { GdgBogorLogo, GoogleSpectrumBar } from './components/BrandMark';
 import { CoverView } from './components/CoverView';
 import { FinalizedRecapModal } from './components/FinalizedRecapModal';
@@ -212,6 +212,9 @@ export default function App() {
     false,
     false,
   ]);
+  const [isRevealReady, setIsRevealReady] = useState<boolean>(() =>
+    Boolean(initialActiveSlot?.challenge)
+  );
   const [revealGeneration, setRevealGeneration] = useState(0);
   const [revealStage, setRevealStage] = useState<RevealStage>('brief');
   const [isStageAutoPlay, setIsStageAutoPlay] = useState(false);
@@ -276,11 +279,12 @@ export default function App() {
   }, []);
 
   const isAnySpinning = spinningCols.some(Boolean);
+  const isSettlingToReveal = hasSpun && !isAnySpinning && !isRevealReady;
   const lockedCount = participants.filter((s) => s.challenge !== null).length;
   const allSlotsLocked = lockedCount === 5;
   const machineStep: 'name' | 'spin' | 'lock' = !isNameConfirmed
     ? 'name'
-    : !hasSpun || isAnySpinning
+    : !hasSpun || isAnySpinning || !isRevealReady
       ? 'spin'
       : 'lock';
 
@@ -332,7 +336,7 @@ export default function App() {
   }, []);
 
   const spinAll = useCallback(async () => {
-    if (isAnySpinning) return;
+    if (isAnySpinning || isSettlingToReveal) return;
 
     clearSpinTimers();
     spinAbortRef.current?.abort();
@@ -355,6 +359,7 @@ export default function App() {
     const spinStartedAt = Date.now();
 
     setActiveMission(null);
+    setIsRevealReady(false);
     setHasSpun(true);
     setActiveMobileReelIdx(0);
     setSpinningCols([true, true, true, true]);
@@ -377,7 +382,7 @@ export default function App() {
         if (orderIdx === 0 || colIdx === lastCol) {
           sfx.playSpinTick(1 + colIdx * 0.06);
         }
-      }, 65);
+      }, 105);
       tickIntervals[colIdx] = tickInterval;
       timersRef.current.push(tickInterval);
     });
@@ -481,10 +486,15 @@ export default function App() {
           sfx.playReelStop(colIdx);
 
           if (colIdx === lastCol) {
-            setRevealStage('problem');
-            setIsStageAutoPlay(true);
-            setRevealGeneration((g) => g + 1);
-            window.setTimeout(() => sfx.playFanfare(), 140);
+            const revealTransitionTimeout = window.setTimeout(() => {
+              if (requestId !== spinRequestIdRef.current) return;
+              setRevealStage('problem');
+              setIsStageAutoPlay(true);
+              setRevealGeneration((g) => g + 1);
+              setIsRevealReady(true);
+              sfx.playFanfare();
+            }, 900);
+            timersRef.current.push(revealTransitionTimeout);
           }
         }, baseDelay + stopOffsets[colIdx]);
         timersRef.current.push(stopTimeout);
@@ -498,9 +508,11 @@ export default function App() {
       if (hadMissionBefore && previousMission) {
         setActiveMission(previousMission);
         setHasSpun(true);
+        setIsRevealReady(true);
       } else {
         setActiveMission(null);
         setHasSpun(false);
+        setIsRevealReady(false);
       }
       sfx.playWarningBeep();
       const message =
@@ -514,6 +526,7 @@ export default function App() {
     clearSpinTimers,
     hasSpun,
     isAnySpinning,
+    isSettlingToReveal,
     participantNameInput,
     showSnackbar,
   ]);
@@ -579,6 +592,7 @@ export default function App() {
       setIsNameConfirmed(Boolean(nextEmpty.name.trim()));
       setActiveMission(null);
       setHasSpun(false);
+      setIsRevealReady(false);
       setRevealStage('brief');
       setIsStageAutoPlay(false);
       showSnackbar(
@@ -625,6 +639,7 @@ export default function App() {
     setIsNameConfirmed(false);
     setActiveMission(null);
     setHasSpun(false);
+    setIsRevealReady(false);
     setRevealStage('brief');
     setIsStageAutoPlay(false);
     setQrModalSlot(null);
@@ -1110,85 +1125,107 @@ export default function App() {
               </div>
             )}
 
-            {machineStep === 'spin' ? (
-              /* Spinning / Mystery View: 4 Clean Slot Cards Without Outer Tray Stroke */
-              <div>
-                {/* Mobile & Tablet Swipeable Single-Reel Carousel */}
-                <div className="lg:hidden space-y-2.5">
-                  <div className="flex items-center justify-between gap-2 px-1">
-                    <div className="flex items-center gap-1.5">
-                      {([0, 1, 2, 3] as const).map((idx) => (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => setActiveMobileReelIdx(idx)}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
-                            activeMobileReelIdx === idx
-                              ? 'bg-[#111827] text-white shadow-xs'
-                              : 'bg-white/90 text-[#64748B] shadow-[0_2px_8px_rgba(15,23,42,0.06)]'
-                          }`}
-                        >
-                          0{idx + 1}
-                        </button>
-                      ))}
+            <AnimatePresence mode="wait">
+              {machineStep === 'spin' ? (
+                /* Spinning / Mystery View: 4 Clean Slot Cards Without Outer Tray Stroke */
+                <motion.div
+                  key="slot-cards-stage"
+                  initial={{ opacity: 0, y: 12, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{
+                    opacity: 0,
+                    y: -14,
+                    scale: 0.965,
+                    filter: 'blur(6px)',
+                    transition: { duration: 0.44, ease: [0.16, 1, 0.3, 1] },
+                  }}
+                  transition={{ duration: 0.44, ease: [0.16, 1, 0.3, 1] }}
+                >
+                  {/* Mobile & Tablet Swipeable Single-Reel Carousel */}
+                  <div className="lg:hidden space-y-2.5">
+                    <div className="flex items-center justify-between gap-2 px-1">
+                      <div className="flex items-center gap-1.5">
+                        {([0, 1, 2, 3] as const).map((idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => setActiveMobileReelIdx(idx)}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
+                              activeMobileReelIdx === idx
+                                ? 'bg-[#111827] text-white shadow-xs'
+                                : 'bg-white/90 text-[#64748B] shadow-[0_2px_8px_rgba(15,23,42,0.06)]'
+                            }`}
+                          >
+                            0{idx + 1}
+                          </button>
+                        ))}
+                      </div>
+                      <span className="text-[11px] font-medium text-[#64748B] select-none">
+                        Geser kartu kiri/kanan
+                      </span>
                     </div>
-                    <span className="text-[11px] font-medium text-[#64748B] select-none">
-                      Geser kartu kiri/kanan
-                    </span>
+
+                    <SlotReelCard
+                      theme={REEL_THEMES[activeMobileReelIdx]}
+                      item={reelItems[activeMobileReelIdx]}
+                      isRevealed={hasSpun}
+                      isSpinning={spinningCols[activeMobileReelIdx]}
+                      isFocusMode
+                      onSwipeLeft={() =>
+                        setActiveMobileReelIdx((prev) => (prev < 3 ? ((prev + 1) as 0 | 1 | 2 | 3) : 0))
+                      }
+                      onSwipeRight={() =>
+                        setActiveMobileReelIdx((prev) => (prev > 0 ? ((prev - 1) as 0 | 1 | 2 | 3) : 3))
+                      }
+                    />
                   </div>
 
-                  <SlotReelCard
-                    theme={REEL_THEMES[activeMobileReelIdx]}
-                    item={reelItems[activeMobileReelIdx]}
-                    isRevealed={hasSpun}
-                    isSpinning={spinningCols[activeMobileReelIdx]}
-                    isFocusMode
-                    onSwipeLeft={() =>
-                      setActiveMobileReelIdx((prev) => (prev < 3 ? ((prev + 1) as 0 | 1 | 2 | 3) : 0))
-                    }
-                    onSwipeRight={() =>
-                      setActiveMobileReelIdx((prev) => (prev > 0 ? ((prev - 1) as 0 | 1 | 2 | 3) : 3))
-                    }
-                  />
-                </div>
-
-                {/* Desktop 4-Column Slot Grid */}
-                <div
-                  className={`hidden lg:grid lg:grid-cols-4 items-stretch ${
-                    isWideProjector ? 'gap-5' : 'gap-4'
-                  }`}
+                  {/* Desktop 4-Column Slot Grid */}
+                  <div
+                    className={`hidden lg:grid lg:grid-cols-4 items-stretch ${
+                      isWideProjector ? 'gap-5' : 'gap-4'
+                    }`}
+                  >
+                    {([0, 1, 2, 3] as const).map((idx) => (
+                      <SlotReelCard
+                        key={idx}
+                        theme={REEL_THEMES[idx]}
+                        item={reelItems[idx]}
+                        isRevealed={hasSpun}
+                        isSpinning={spinningCols[idx]}
+                        isFocusMode
+                        isWideProjector={isWideProjector}
+                      />
+                    ))}
+                  </div>
+                </motion.div>
+              ) : (
+                /* Revealed Result View: Smooth Eased Entry Into Stage-by-Stage Reveal -> Kartu Misi */
+                <motion.div
+                  key={`showcase-stage-${revealGeneration}`}
+                  initial={{ opacity: 0, y: 20, scale: 0.97, filter: 'blur(6px)' }}
+                  animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
+                  exit={{ opacity: 0, y: -12, scale: 0.98 }}
+                  transition={{ duration: 0.58, ease: [0.16, 1, 0.3, 1] }}
                 >
-                  {([0, 1, 2, 3] as const).map((idx) => (
-                    <SlotReelCard
-                      key={idx}
-                      theme={REEL_THEMES[idx]}
-                      item={reelItems[idx]}
-                      isRevealed={hasSpun}
-                      isSpinning={spinningCols[idx]}
-                      isFocusMode
-                      isWideProjector={isWideProjector}
-                    />
-                  ))}
-                </div>
-              </div>
-            ) : (
-              /* Revealed Result View: Cinematic Stage-by-Stage Reveal -> Direct Kartu Misi */
-              <MissionResultShowcase
-                mission={contextualMission}
-                participantNumber={activeTurn}
-                participantName={participantNameInput}
-                revealKey={revealGeneration}
-                stage={revealStage}
-                autoPlay={isStageAutoPlay}
-                isWideProjector={isWideProjector}
-                advanceActionLabel={advanceActionLabel}
-                onSelectStage={(nextStage, stopAutoPlay) => {
-                  if (stopAutoPlay) setIsStageAutoPlay(false);
-                  setRevealStage(nextStage);
-                }}
-                onConfirmAndAdvance={() => handleLockAndAdvance(contextualMission)}
-              />
-            )}
+                  <MissionResultShowcase
+                    mission={contextualMission}
+                    participantNumber={activeTurn}
+                    participantName={participantNameInput}
+                    revealKey={revealGeneration}
+                    stage={revealStage}
+                    autoPlay={isStageAutoPlay}
+                    isWideProjector={isWideProjector}
+                    advanceActionLabel={advanceActionLabel}
+                    onSelectStage={(nextStage, stopAutoPlay) => {
+                      if (stopAutoPlay) setIsStageAutoPlay(false);
+                      setRevealStage(nextStage);
+                    }}
+                    onConfirmAndAdvance={() => handleLockAndAdvance(contextualMission)}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Step-Focused Centered Action Bar */}
             {machineStep === 'spin' ? (
@@ -1196,14 +1233,18 @@ export default function App() {
                 <button
                   type="button"
                   onClick={spinAll}
-                  disabled={isAnySpinning}
-                  className={`rounded-2xl bg-[#1A73E8] hover:bg-[#1557B0] text-white font-bold inline-flex items-center justify-center gap-2.5 transition-colors whitespace-nowrap cursor-pointer disabled:opacity-55 disabled:cursor-not-allowed shadow-[0_8px_24px_rgba(26,115,232,0.28)] ${
+                  disabled={isAnySpinning || isSettlingToReveal}
+                  className={`rounded-2xl bg-[#1A73E8] hover:bg-[#1557B0] text-white font-bold inline-flex items-center justify-center gap-2.5 transition-all whitespace-nowrap cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed shadow-[0_8px_24px_rgba(26,115,232,0.28)] ${
                     isWideProjector ? 'min-h-[54px] px-10 py-3 text-lg' : 'min-h-[48px] px-8 py-2.5 text-base'
                   }`}
                 >
                   <Dices className="w-5 h-5" aria-hidden="true" />
                   <span>
-                    {isAnySpinning ? 'Meracik Ide dengan Gemini...' : 'Spin Buka Kejutan (SPACE)'}
+                    {isAnySpinning
+                      ? 'Meracik Ide dengan Gemini...'
+                      : isSettlingToReveal
+                        ? 'Membuka Hasil...'
+                        : 'Spin Buka Kejutan (SPACE)'}
                   </span>
                 </button>
               </div>
@@ -1212,7 +1253,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={spinAll}
-                  disabled={isAnySpinning}
+                  disabled={isAnySpinning || isSettlingToReveal}
                   className={`rounded-xl bg-white hover:bg-[#F1F5F9] text-[#111827] font-bold inline-flex items-center justify-center gap-2 transition-colors whitespace-nowrap cursor-pointer disabled:opacity-45 shadow-[0_6px_18px_rgba(15,23,42,0.08)] ${
                     isWideProjector ? 'min-h-[46px] px-7 py-2 text-base' : 'min-h-[42px] px-6 py-1.5 text-sm'
                   }`}

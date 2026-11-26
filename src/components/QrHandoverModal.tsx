@@ -83,11 +83,10 @@ export function QrHandoverModal({
             <div className="p-3.5 rounded-2xl bg-[#F8F9FA] space-y-2.5">
               <div>
                 <div className="text-[11px] font-semibold text-[#1E8E3E]">
-                  THE APP · APLIKASI YANG HARUS DIBUAT
+                  THE APP
                 </div>
-                <div className="font-semibold text-[#202124] flex items-center gap-1.5 mt-0.5">
-                  <ReelIcon name={mission.solution.icon} className="w-4 h-4 text-[#34A853] shrink-0" />
-                  <span>{mission.solution.title}</span>
+                <div className="font-semibold text-[#202124] mt-0.5">
+                  {mission.solution.title}
                 </div>
                 <div className="text-xs text-[#3C4043] mt-1 leading-relaxed">
                   {mission.solution.contextualHowToBuild}
@@ -100,9 +99,8 @@ export function QrHandoverModal({
                 <div className="text-[11px] font-semibold text-[#4285F4]">
                   THE PROBLEM
                 </div>
-                <div className="font-semibold text-[#202124] flex items-center gap-1.5 mt-0.5">
-                  <ReelIcon name={mission.problem.icon} className="w-4 h-4 text-[#4285F4] shrink-0" />
-                  <span>{mission.problem.title}</span>
+                <div className="font-semibold text-[#202124] mt-0.5">
+                  {mission.problem.title}
                 </div>
               </div>
 
@@ -112,9 +110,8 @@ export function QrHandoverModal({
                 <div className="text-[11px] font-semibold text-[#EA4335]">
                   THE USER
                 </div>
-                <div className="font-semibold text-[#202124] flex items-center gap-1.5 mt-0.5">
-                  <ReelIcon name={mission.targetUser.icon} className="w-4 h-4 text-[#EA4335] shrink-0" />
-                  <span>{mission.targetUser.title}</span>
+                <div className="font-semibold text-[#202124] mt-0.5">
+                  {mission.targetUser.title}
                 </div>
               </div>
 

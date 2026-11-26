@@ -12,7 +12,6 @@ import {
 } from 'lucide-react';
 import { motion, useScroll, useSpring, useTransform } from 'motion/react';
 import { GdgBogorLogo, GoogleSpectrumBar } from './BrandMark';
-import { ReelIcon } from './ReelIcon';
 import { MissionBriefPayload, resolveMissionDetails } from '../utils/briefCodec';
 
 interface MissionBriefViewProps {
@@ -290,7 +289,7 @@ export function MissionBriefView({
                 <ReceiptTearDivider />
 
                 {/* ITEM 01: THE PROBLEM */}
-                <section className="space-y-2">
+                <section className="space-y-1.5">
                   <div className="flex items-center justify-between gap-2">
                     <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-[#FEE2E2] text-[#DC2626] font-mono text-[10px] font-bold uppercase tracking-wider">
                       01 · THE PROBLEM
@@ -300,25 +299,20 @@ export function MissionBriefView({
                     </span>
                   </div>
 
-                  <div className="flex items-start gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-[#FEE2E2] text-[#EA4335] flex items-center justify-center shrink-0 mt-0.5">
-                      <ReelIcon name={problem.icon} className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <h2 className="text-base font-bold text-[#111827] leading-snug">
-                        {problem.title}
-                      </h2>
-                      <p className="mt-1 text-xs sm:text-[13px] text-[#374151] leading-relaxed">
-                        {problem.description}
-                      </p>
-                    </div>
+                  <div className="min-w-0">
+                    <h2 className="text-base font-bold text-[#111827] leading-snug">
+                      {problem.title}
+                    </h2>
+                    <p className="mt-1 text-xs sm:text-[13px] text-[#374151] leading-relaxed">
+                      {problem.description}
+                    </p>
                   </div>
                 </section>
 
                 <ReceiptTearDivider />
 
                 {/* ITEM 02: THE USER */}
-                <section className="space-y-2">
+                <section className="space-y-1.5">
                   <div className="flex items-center justify-between gap-2">
                     <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-[#E8F0FE] text-[#1A73E8] font-mono text-[10px] font-bold uppercase tracking-wider">
                       02 · THE USER
@@ -328,18 +322,13 @@ export function MissionBriefView({
                     </span>
                   </div>
 
-                  <div className="flex items-start gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-[#E8F0FE] text-[#1A73E8] flex items-center justify-center shrink-0 mt-0.5">
-                      <ReelIcon name={targetUser.icon} className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <h2 className="text-base font-bold text-[#111827] leading-snug">
-                        {targetUser.title}
-                      </h2>
-                      <p className="mt-1 text-xs sm:text-[13px] text-[#374151] leading-relaxed">
-                        {targetUser.contextualDescription}
-                      </p>
-                    </div>
+                  <div className="min-w-0">
+                    <h2 className="text-base font-bold text-[#111827] leading-snug">
+                      {targetUser.title}
+                    </h2>
+                    <p className="mt-1 text-xs sm:text-[13px] text-[#374151] leading-relaxed">
+                      {targetUser.contextualDescription}
+                    </p>
                   </div>
                 </section>
 
@@ -357,18 +346,13 @@ export function MissionBriefView({
                   </div>
 
                   <div className="rounded-xl bg-[#F8FAFC] p-3.5 space-y-2.5">
-                    <div className="flex items-start gap-2.5">
-                      <div className="w-9 h-9 rounded-lg bg-[#E6F4EA] text-[#1E8E3E] flex items-center justify-center shrink-0 mt-0.5">
-                        <ReelIcon name={solution.icon} className="w-4.5 h-4.5" />
-                      </div>
-                      <div className="min-w-0">
-                        <h1 className="text-base sm:text-lg font-bold text-[#111827] leading-snug">
-                          {solution.title}
-                        </h1>
-                        <p className="mt-1 text-xs sm:text-[13px] text-[#374151] leading-relaxed">
-                          {solution.contextualHowToBuild}
-                        </p>
-                      </div>
+                    <div className="min-w-0">
+                      <h1 className="text-base sm:text-lg font-bold text-[#111827] leading-snug">
+                        {solution.title}
+                      </h1>
+                      <p className="mt-1 text-xs sm:text-[13px] text-[#374151] leading-relaxed">
+                        {solution.contextualHowToBuild}
+                      </p>
                     </div>
 
                     <div className="border-t border-dashed border-[#CBD5E1] pt-2.5 space-y-1.5">

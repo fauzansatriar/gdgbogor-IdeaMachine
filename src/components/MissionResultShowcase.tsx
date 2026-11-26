@@ -846,18 +846,14 @@ export function MissionResultShowcase({
                   {/* THE APP */}
                   <div>
                     <div className="text-[10px] font-bold text-[#1E8E3E] uppercase tracking-wider">
-                      THE APP · APLIKASI YANG HARUS DIBUAT
+                      THE APP
                     </div>
                     <div
-                      className={`font-bold text-[#111827] flex items-center gap-1.5 mt-0.5 ${
+                      className={`font-bold text-[#111827] mt-0.5 ${
                         isWideProjector ? 'text-lg' : 'text-sm sm:text-base'
                       }`}
                     >
-                      <ReelIcon
-                        name={mission.solution.icon}
-                        className="w-4 h-4 text-[#34A853] shrink-0"
-                      />
-                      <span>{mission.solution.title}</span>
+                      {mission.solution.title}
                     </div>
                     <p
                       className={`text-[#374151] mt-1 leading-snug ${
@@ -893,15 +889,11 @@ export function MissionResultShowcase({
                         THE PROBLEM
                       </div>
                       <div
-                        className={`font-bold text-[#111827] flex items-center gap-1.5 mt-0.5 ${
+                        className={`font-bold text-[#111827] mt-0.5 leading-snug ${
                           isWideProjector ? 'text-sm' : 'text-xs sm:text-[13px]'
                         }`}
                       >
-                        <ReelIcon
-                          name={mission.problem.icon}
-                          className="w-3.5 h-3.5 text-[#EA4335] shrink-0"
-                        />
-                        <span className="leading-snug">{mission.problem.title}</span>
+                        {mission.problem.title}
                       </div>
                       <p className="mt-0.5 text-[11px] sm:text-xs text-[#4B5563] leading-snug">
                         {mission.problem.description}
@@ -913,15 +905,11 @@ export function MissionResultShowcase({
                         THE USER
                       </div>
                       <div
-                        className={`font-bold text-[#111827] flex items-center gap-1.5 mt-0.5 ${
+                        className={`font-bold text-[#111827] mt-0.5 leading-snug ${
                           isWideProjector ? 'text-sm' : 'text-xs sm:text-[13px]'
                         }`}
                       >
-                        <ReelIcon
-                          name={mission.targetUser.icon}
-                          className="w-3.5 h-3.5 text-[#4285F4] shrink-0"
-                        />
-                        <span className="leading-snug">{mission.targetUser.title}</span>
+                        {mission.targetUser.title}
                       </div>
                       <p className="mt-0.5 text-[11px] sm:text-xs text-[#4B5563] leading-snug">
                         {mission.targetUser.contextualDescription}
