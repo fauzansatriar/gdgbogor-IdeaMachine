@@ -14,6 +14,7 @@ import {
   X,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
+import { AdminDashboardView } from './components/AdminDashboardView';
 import { GdgBogorLogo, GoogleSpectrumBar } from './components/BrandMark';
 import { CoverView } from './components/CoverView';
 import { FinalizedRecapModal } from './components/FinalizedRecapModal';
@@ -23,7 +24,9 @@ import { QrHandoverModal } from './components/QrHandoverModal';
 import { ReelDisplayData, ReelTheme, SlotReelCard } from './components/SlotReelCard';
 import { StageTimerView } from './components/StageTimerView';
 import {
+  CategoryPools,
   ContextualMission,
+  DEFAULT_CATEGORY_POOLS,
   DEVICE_TARGETS,
   PROBLEMS,
   ParticipantSlot,
@@ -38,7 +41,7 @@ import { MissionBriefPayload, decodeBriefToken } from './utils/briefCodec';
 import { downloadAllSummaryPdf, downloadParticipantPdf } from './utils/pdfExport';
 import { useProjectorDisplay } from './hooks/useProjectorDisplay';
 
-type AppPage = 'cover' | 'machine' | 'timer';
+type AppPage = 'cover' | 'machine' | 'timer' | 'admin';
 
 interface StoredState {
   participants: ParticipantSlot[];
@@ -169,6 +172,9 @@ export default function App() {
   const [previewBrief, setPreviewBrief] = useState<MissionBriefPayload | null>(null);
   const [activePage, setActivePage] = useState<AppPage>('cover');
   const [sfxEnabled, setSfxEnabled] = useState(true);
+  const [categoryPools, setCategoryPools] = useState<CategoryPools>(DEFAULT_CATEGORY_POOLS);
+  const [adminToken, setAdminToken] = useState<string | null>(null);
+  const [adminUsername, setAdminUsername] = useState<string | null>(null);
 
   const initialStored = useMemo(() => loadInitialState(), []);
   const [participants, setParticipants] = useState<ParticipantSlot[]>(
@@ -273,6 +279,23 @@ export default function App() {
       // Ignore storage quota errors
     }
   }, [participants, activeTurn]);
+
+  useEffect(() => {
+    if (urlBriefPayload) return;
+    let active = true;
+    fetch('/api/categories')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { categories?: CategoryPools } | null) => {
+        if (!active || !data?.categories) return;
+        setCategoryPools(data.categories);
+      })
+      .catch(() => {
+        // Keep defaults on transient load error
+      });
+    return () => {
+      active = false;
+    };
+  }, [urlBriefPayload]);
 
   useEffect(() => {
     return () => {
@@ -391,7 +414,10 @@ export default function App() {
           };
 
           if (response.ok && data.mission) {
-            const resolvedDevice = getDeviceById(data.mission.deviceId);
+            const resolvedDevice = getDeviceById(
+              data.mission.deviceId,
+              categoryPools.deviceTargets
+            );
             return {
               problem: data.mission.problem,
               targetUser: data.mission.targetUser,
@@ -457,7 +483,7 @@ export default function App() {
         new Error('Gagal membuat ide baru dari Gemini. Silakan coba Spin lagi.')
       );
     },
-    []
+    [categoryPools.deviceTargets]
   );
 
   const warmPrefetchMission = useCallback(() => {
@@ -534,10 +560,10 @@ export default function App() {
     const previousMission = activeMission;
 
     const poolsLengths = [
-      PROBLEMS.length,
-      SOLUTIONS.length,
-      TARGET_USERS.length,
-      DEVICE_TARGETS.length,
+      Math.max(1, categoryPools.problems.length),
+      Math.max(1, categoryPools.solutions.length),
+      Math.max(1, categoryPools.targetUsers.length),
+      Math.max(1, categoryPools.deviceTargets.length),
     ];
     const columns = [0, 1, 2, 3] as const;
     const lastCol = 3;
@@ -634,14 +660,16 @@ export default function App() {
           window.clearInterval(tickIntervals[colIdx]);
 
           if (colIdx === lastCol) {
-            const devIdx = DEVICE_TARGETS.findIndex(
+            const devIdx = categoryPools.deviceTargets.findIndex(
               (d) => d.id === resolvedDevice.id
             );
             setReelIndices((prev) => [
               prev[0],
               prev[1],
               prev[2],
-              devIdx >= 0 ? devIdx : pickRandomIndex(DEVICE_TARGETS.length, prev[3]),
+              devIdx >= 0
+                ? devIdx
+                : pickRandomIndex(categoryPools.deviceTargets.length, prev[3]),
             ]);
           }
 
@@ -697,6 +725,10 @@ export default function App() {
     }
   }, [
     activeMission,
+    categoryPools.deviceTargets.length,
+    categoryPools.problems.length,
+    categoryPools.solutions.length,
+    categoryPools.targetUsers.length,
     clearSpinTimers,
     hasSpun,
     isAnySpinning,
@@ -877,7 +909,14 @@ export default function App() {
       const isInteractiveTarget = ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON', 'A'].includes(tag);
 
       if (e.code === 'KeyF' && !e.metaKey && !e.ctrlKey && !e.altKey) {
-        if (urlBriefPayload || previewBrief || qrModalSlot || isRecapOpen || isInteractiveTarget) {
+        if (
+          urlBriefPayload ||
+          previewBrief ||
+          qrModalSlot ||
+          isRecapOpen ||
+          activePage === 'admin' ||
+          isInteractiveTarget
+        ) {
           return;
         }
         e.preventDefault();
@@ -967,10 +1006,24 @@ export default function App() {
     );
   }
 
-  const rawProblem = PROBLEMS[reelIndices[0]];
-  const rawSolution = SOLUTIONS[reelIndices[1]];
-  const rawUser = TARGET_USERS[reelIndices[2]];
-  const rawDevice = DEVICE_TARGETS[reelIndices[3]];
+  const liveProblems =
+    categoryPools.problems.length > 0 ? categoryPools.problems : PROBLEMS;
+  const liveSolutions =
+    categoryPools.solutions.length > 0 ? categoryPools.solutions : SOLUTIONS;
+  const liveUsers =
+    categoryPools.targetUsers.length > 0 ? categoryPools.targetUsers : TARGET_USERS;
+  const liveDevices =
+    categoryPools.deviceTargets.length > 0 ? categoryPools.deviceTargets : DEVICE_TARGETS;
+
+  const probIdx = reelIndices[0] % liveProblems.length;
+  const solIdx = reelIndices[1] % liveSolutions.length;
+  const userIdx = reelIndices[2] % liveUsers.length;
+  const devIdx = reelIndices[3] % liveDevices.length;
+
+  const rawProblem = liveProblems[probIdx];
+  const rawSolution = liveSolutions[solIdx];
+  const rawUser = liveUsers[userIdx];
+  const rawDevice = liveDevices[devIdx];
 
   const fallbackMission = buildContextualMission(
     rawProblem,
@@ -981,14 +1034,14 @@ export default function App() {
 
   const contextualMission: ContextualMission = activeMission ?? fallbackMission;
 
-  const prevProblem = PROBLEMS[(reelIndices[0] - 1 + PROBLEMS.length) % PROBLEMS.length];
-  const nextProblem = PROBLEMS[(reelIndices[0] + 1) % PROBLEMS.length];
-  const prevSolution = SOLUTIONS[(reelIndices[1] - 1 + SOLUTIONS.length) % SOLUTIONS.length];
-  const nextSolution = SOLUTIONS[(reelIndices[1] + 1) % SOLUTIONS.length];
-  const prevUser = TARGET_USERS[(reelIndices[2] - 1 + TARGET_USERS.length) % TARGET_USERS.length];
-  const nextUser = TARGET_USERS[(reelIndices[2] + 1) % TARGET_USERS.length];
-  const prevDevice = DEVICE_TARGETS[(reelIndices[3] - 1 + DEVICE_TARGETS.length) % DEVICE_TARGETS.length];
-  const nextDevice = DEVICE_TARGETS[(reelIndices[3] + 1) % DEVICE_TARGETS.length];
+  const prevProblem = liveProblems[(probIdx - 1 + liveProblems.length) % liveProblems.length];
+  const nextProblem = liveProblems[(probIdx + 1) % liveProblems.length];
+  const prevSolution = liveSolutions[(solIdx - 1 + liveSolutions.length) % liveSolutions.length];
+  const nextSolution = liveSolutions[(solIdx + 1) % liveSolutions.length];
+  const prevUser = liveUsers[(userIdx - 1 + liveUsers.length) % liveUsers.length];
+  const nextUser = liveUsers[(userIdx + 1) % liveUsers.length];
+  const prevDevice = liveDevices[(devIdx - 1 + liveDevices.length) % liveDevices.length];
+  const nextDevice = liveDevices[(devIdx + 1) % liveDevices.length];
 
   const col0Mission = !spinningCols[0] && activeMission ? activeMission : fallbackMission;
   const col1Mission = !spinningCols[1] && activeMission ? activeMission : fallbackMission;
@@ -1055,7 +1108,7 @@ export default function App() {
       }`}
     >
       {/* Light-Mode Floating Pill Navbar (Mode Fokus & Fullscreen) */}
-      {(activePage !== 'cover' || isNativeFullscreen) && (
+      {((activePage !== 'cover' && activePage !== 'admin') || isNativeFullscreen) && (
         <header className="shrink-0 pt-3 pb-1 px-4 flex justify-center z-20">
           <nav
             aria-label="Navigasi Mode Fokus"
@@ -1190,6 +1243,7 @@ export default function App() {
         <main className="flex-1 min-h-0 flex flex-col bg-white">
           <CoverView
             isWideProjector={isWideProjector}
+            onOpenAdmin={() => setActivePage('admin')}
             onStartMachine={() => {
               if (allSlotsLocked) {
                 setActivePage('timer');
@@ -1199,6 +1253,29 @@ export default function App() {
             }}
           />
         </main>
+      ) : activePage === 'admin' ? (
+        <AdminDashboardView
+          categories={categoryPools}
+          adminToken={adminToken}
+          adminUsername={adminUsername}
+          onAuthSuccess={(token, username) => {
+            setAdminToken(token);
+            setAdminUsername(username);
+          }}
+          onLogout={() => {
+            setAdminToken(null);
+            setAdminUsername(null);
+            fetch('/api/admin/logout', { method: 'POST' }).catch(() => {});
+          }}
+          onCategoriesChange={(nextPools) => {
+            setCategoryPools(nextPools);
+            prefetchAbortRef.current?.abort();
+            prefetchedMissionRef.current = null;
+            prefetchPromiseRef.current = null;
+          }}
+          onBackToCover={() => setActivePage('cover')}
+          onNotify={showSnackbar}
+        />
       ) : activePage === 'timer' ? (
         <main className="flex-1 min-h-0 flex flex-col bg-white">
           <StageTimerView isWideProjector={isWideProjector} />
@@ -1511,32 +1588,34 @@ export default function App() {
       )}
 
       {/* Persistent Corner Hotkey Help Overlay */}
-      <aside
-        aria-label="Panduan Tombol Cepat Presentasi"
-        className="fixed bottom-3.5 right-4 z-30 hidden sm:flex items-center gap-3 px-3 py-1.5 rounded-xl bg-white/95 backdrop-blur-xs shadow-[0_8px_24px_rgba(15,23,42,0.08)] text-[11px] font-semibold text-[#475569] pointer-events-none select-none"
-      >
-        <div className="flex items-center gap-1.5">
-          <kbd className="px-1.5 py-0.5 rounded-md bg-[#F1F5F9] text-[10px] font-bold text-[#111827]">
-            F
-          </kbd>
-          <span>{isNativeFullscreen ? 'Keluar Layar Penuh' : 'Layar Penuh'}</span>
-        </div>
-
-        <span className="h-3 w-px bg-[#E2E8F0]" aria-hidden="true" />
-
-        <div
-          className={`flex items-center gap-1.5 transition-opacity ${
-            activePage === 'machine' && machineStep !== 'name'
-              ? 'text-[#1A73E8] opacity-100'
-              : 'opacity-70'
-          }`}
+      {activePage !== 'admin' && (
+        <aside
+          aria-label="Panduan Tombol Cepat Presentasi"
+          className="fixed bottom-3.5 right-4 z-30 hidden sm:flex items-center gap-3 px-3 py-1.5 rounded-xl bg-white/95 backdrop-blur-xs shadow-[0_8px_24px_rgba(15,23,42,0.08)] text-[11px] font-semibold text-[#475569] pointer-events-none select-none"
         >
-          <kbd className="px-1.5 py-0.5 rounded-md bg-[#F1F5F9] text-[10px] font-bold text-[#111827]">
-            SPACE
-          </kbd>
-          <span>Putar Mesin</span>
-        </div>
-      </aside>
+          <div className="flex items-center gap-1.5">
+            <kbd className="px-1.5 py-0.5 rounded-md bg-[#F1F5F9] text-[10px] font-bold text-[#111827]">
+              F
+            </kbd>
+            <span>{isNativeFullscreen ? 'Keluar Layar Penuh' : 'Layar Penuh'}</span>
+          </div>
+
+          <span className="h-3 w-px bg-[#E2E8F0]" aria-hidden="true" />
+
+          <div
+            className={`flex items-center gap-1.5 transition-opacity ${
+              activePage === 'machine' && machineStep !== 'name'
+                ? 'text-[#1A73E8] opacity-100'
+                : 'opacity-70'
+            }`}
+          >
+            <kbd className="px-1.5 py-0.5 rounded-md bg-[#F1F5F9] text-[10px] font-bold text-[#111827]">
+              SPACE
+            </kbd>
+            <span>Putar Mesin</span>
+          </div>
+        </aside>
+      )}
 
       {/* Bottom 4-Color Google Spectrum Line */}
       <GoogleSpectrumBar />

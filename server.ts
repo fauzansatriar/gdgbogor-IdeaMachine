@@ -1,5 +1,7 @@
 import 'dotenv/config';
-import express, { Request, Response } from 'express';
+import crypto from 'crypto';
+import express, { NextFunction, Request, Response } from 'express';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI, ThinkingLevel, Type } from '@google/genai';
@@ -9,6 +11,18 @@ const __dirname = path.dirname(__filename);
 
 const PORT = Number(process.env.PORT) || 3000;
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+
+const DATA_DIR = path.resolve(__dirname, 'data');
+const CATEGORIES_FILE = path.resolve(DATA_DIR, 'idea-categories.json');
+const ADMIN_AUTH_FILE = path.resolve(DATA_DIR, 'admin-auth.json');
+
+if (!CATEGORIES_FILE.startsWith(DATA_DIR + path.sep) || !ADMIN_AUTH_FILE.startsWith(DATA_DIR + path.sep)) {
+  throw new Error('Invalid server data file paths.');
+}
+
+const SESSION_SIGNING_SECRET =
+  process.env.ADMIN_SESSION_SECRET?.trim() || crypto.randomBytes(32).toString('hex');
+const SESSION_TTL_MS = 4 * 60 * 60 * 1000;
 
 const VALID_PROBLEM_ICONS = [
   'utensils',
@@ -49,6 +63,487 @@ const VALID_SOLUTION_ICONS = [
 ] as const;
 
 const VALID_DEVICE_IDS = ['mobile', 'desktop', 'tablet-kiosk', 'cross-platform'] as const;
+
+const ALL_VALID_ICONS = [
+  ...VALID_PROBLEM_ICONS,
+  ...VALID_USER_ICONS,
+  ...VALID_SOLUTION_ICONS,
+  'smartphone',
+  'laptop',
+  'tablet',
+  'monitor-smartphone',
+] as const;
+
+type CategoryKey = 'problems' | 'solutions' | 'targetUsers' | 'deviceTargets';
+
+interface StoredProblemItem {
+  id: string;
+  icon: string;
+  title: string;
+  domain: string;
+  shortNoun: string;
+  description: string;
+}
+
+interface StoredTargetUserItem {
+  id: string;
+  icon: string;
+  title: string;
+  shortPersona: string;
+  context: string;
+  description: string;
+}
+
+interface StoredSolutionItem {
+  id: string;
+  icon: string;
+  title: string;
+  techStack: string;
+  howToBuild: string;
+  coreFeatures: string[];
+}
+
+interface StoredDeviceTargetItem {
+  id: string;
+  icon: string;
+  title: string;
+  badgeLabel: string;
+  layoutHint: string;
+  description: string;
+}
+
+interface CategoryStore {
+  problems: StoredProblemItem[];
+  solutions: StoredSolutionItem[];
+  targetUsers: StoredTargetUserItem[];
+  deviceTargets: StoredDeviceTargetItem[];
+}
+
+const DEFAULT_CATEGORIES: CategoryStore = {
+  problems: [
+    {
+      id: 'food-waste',
+      icon: 'utensils',
+      title: 'Stok Makanan Sering Terbuang',
+      domain: 'Kehidupan Sehari-hari',
+      shortNoun: 'bahan makanan di kulkas yang sering lupa dimasak sampai basi',
+      description:
+        'Makanan di rumah atau usaha sering keburu basi karena lupa stoknya dan bingung mau diolah jadi apa.',
+    },
+    {
+      id: 'queue-service',
+      icon: 'hospital',
+      title: 'Antrean Panjang & Bingung Syarat',
+      domain: 'Layanan Umum',
+      shortNoun: 'antrean layanan yang lama dan syarat dokumen yang membingungkan',
+      description:
+        'Banyak waktu terbuang di ruang tunggu karena tidak tahu perkiraan giliran dan berkas apa yang harus disiapkan.',
+    },
+    {
+      id: 'waste-sorting',
+      icon: 'recycle',
+      title: 'Bingung Pilah Sampah & Daur Ulang',
+      domain: 'Lingkungan Sekitar',
+      shortNoun: 'cara memilah sampah yang benar dan mencari tempat setor daur ulang',
+      description:
+        'Orang sering ragu mana sampah yang bisa didaur ulang dan tidak tahu harus setor ke mana.',
+    },
+    {
+      id: 'cashflow-stock',
+      icon: 'wallet',
+      title: 'Catatan Uang & Stok Berantakan',
+      domain: 'Usaha & Harian',
+      shortNoun: 'catatan pemasukan, pengeluaran, dan sisa barang yang tercecer',
+      description:
+        'Mencatat uang masuk-keluar di kertas atau chat bikin pusing saat mau cek untung dan sisa barang.',
+    },
+    {
+      id: 'weather-mobility',
+      icon: 'cloud-rain',
+      title: 'Cuaca Mendadak & Macet di Jalan',
+      domain: 'Perjalanan Harian',
+      shortNoun: 'hujan deras, genangan, dan macet mendadak saat di perjalanan',
+      description:
+        'Perjalanan sering terganggu hujan atau rute macet tanpa tahu jalur alternatif yang lebih aman.',
+    },
+    {
+      id: 'info-overload',
+      icon: 'file-text',
+      title: 'Bacaan & Catatan Terlalu Panjang',
+      domain: 'Belajar & Kerja',
+      shortNoun: 'dokumen tebal, catatan rapat, atau materi belajar yang panjang',
+      description:
+        'Teks dan catatan yang terlalu panjang bikin malas baca dan sulit tahu langkah apa yang harus dilakukan dulu.',
+    },
+  ],
+  targetUsers: [
+    {
+      id: 'umkm-owner',
+      icon: 'store',
+      title: 'Pemilik Usaha Kecil & Pedagang',
+      shortPersona: 'pemilik usaha kecil',
+      context: 'Sibuk · Butuh Cepat & Simpel',
+      description:
+        'Pemilik warung atau toko yang mengurus semuanya sendiri dan butuh aplikasi praktis tanpa belajar hal rumit.',
+    },
+    {
+      id: 'students',
+      icon: 'graduation-cap',
+      title: 'Pelajar & Mahasiswa',
+      shortPersona: 'pelajar dan mahasiswa',
+      context: 'Aktif · Hemat Waktu',
+      description:
+        'Anak sekolah atau kuliah yang butuh info cepat, ringkas, dan gampang dipakai di sela jadwal padat.',
+    },
+    {
+      id: 'commuters',
+      icon: 'train',
+      title: 'Pekerja yang Sering di Jalan',
+      shortPersona: 'pekerja yang aktif di jalan',
+      context: 'Buru-buru · Pakai Sambil Jalan',
+      description:
+        'Orang yang sering mengambil keputusan cepat di perjalanan dan butuh panduan yang langsung jelas.',
+    },
+    {
+      id: 'young-families',
+      icon: 'home',
+      title: 'Keluarga Muda & Ibu Rumah Tangga',
+      shortPersona: 'keluarga muda di rumah',
+      context: 'Kebutuhan Rumah · Praktis',
+      description:
+        'Pengurus rumah tangga yang mengatur belanja, jadwal keluarga, dan pengeluaran rutin tiap minggu.',
+    },
+    {
+      id: 'community-volunteers',
+      icon: 'users',
+      title: 'Warga & Relawan Komunitas',
+      shortPersona: 'warga dan relawan komunitas',
+      context: 'Gotong Royong · Saling Bantu',
+      description:
+        'Warga atau relawan yang ingin mengumpulkan dan membagikan informasi penting ke banyak orang dengan cepat.',
+    },
+  ],
+  solutions: [
+    {
+      id: 'vision-maps',
+      icon: 'camera',
+      title: 'Aplikasi Foto Cerdas & Peta Terdekat',
+      techStack: 'Baca Foto AI · Peta Lokasi',
+      howToBuild:
+        'Pengguna cukup foto situasi di depannya, AI langsung baca fotonya dan kasih saran, lalu peta menunjukkan lokasi tujuan terdekat.',
+      coreFeatures: [
+        'Foto langsung pakai kamera HP atau upload gambar',
+        'AI membaca foto lalu memberi saran langkah yang jelas',
+        'Menampilkan titik lokasi terdekat di peta',
+      ],
+    },
+    {
+      id: 'search-cloudrun',
+      icon: 'globe',
+      title: 'Asisten Pencari Info & Peringatan Cepat',
+      techStack: 'Cari Info Terbaru · Ringkasan AI',
+      howToBuild:
+        'Aplikasi mencari informasi terbaru secara otomatis, menyaring mana yang paling penting, lalu merangkumnya jadi panduan singkat.',
+      coreFeatures: [
+        'Cari kabar dan info terbaru secara otomatis',
+        'Merangkum situasi penting agar langsung paham',
+        'Checklist langkah cepat yang bisa dibagikan',
+      ],
+    },
+    {
+      id: 'firestore-triage',
+      icon: 'radio',
+      title: 'Papan Laporan Bareng & Pilah Otomatis',
+      techStack: 'Update Langsung · Pilah Prioritas AI',
+      howToBuild:
+        'Siapa saja bisa kirim laporan singkat, AI otomatis mengelompokkan mana yang paling mendesak, lalu langsung tampil di papan bersama.',
+      coreFeatures: [
+        'Form kirim laporan cepat hanya dalam 10 detik',
+        'AI otomatis menandai laporan mana yang paling penting',
+        'Papan pantau bersama yang langsung terupdate',
+      ],
+    },
+    {
+      id: 'voice-handsfree',
+      icon: 'mic',
+      title: 'Asisten Suara (Ngomong Langsung)',
+      techStack: 'Perintah Suara · Jawaban Suara AI',
+      howToBuild:
+        'Pengguna tinggal ngomong saat tangan lagi sibuk, AI mengerti maksudnya, membantu mencatat atau menghitung, lalu menjawab lewat suara.',
+      coreFeatures: [
+        'Tombol rekam suara besar yang gampang dipencet',
+        'AI langsung mencatat, menghitung, atau menjawab pertanyaan',
+        'Teks ringkas di layar untuk cek ulang hasil',
+      ],
+    },
+    {
+      id: 'structured-estimator',
+      icon: 'calculator',
+      title: 'Perapi Catatan & Penghitung Otomatis',
+      techStack: 'Baca Catatan · Hitung Perkiraan',
+      howToBuild:
+        'Foto catatan berantakan, struk belanja, atau tempel teks panjang—aplikasi langsung merapikannya jadi tabel jelas plus hitungan biaya atau waktu.',
+      coreFeatures: [
+        'Upload foto catatan kertas atau tempel teks apa adanya',
+        'Otomatis berubah jadi daftar & tabel yang rapi',
+        'Menghitung perkiraan biaya, waktu, atau penghematan',
+      ],
+    },
+  ],
+  deviceTargets: [
+    {
+      id: 'mobile',
+      icon: 'smartphone',
+      title: 'Tampilan HP',
+      badgeLabel: 'Layar Vertikal',
+      layoutHint: 'Nyaman Satu Tangan · Tombol Besar',
+      description:
+        'Didesain khusus untuk layar HP dengan tombol besar dan menu sederhana yang gampang dipencet pakai jempol.',
+    },
+    {
+      id: 'desktop',
+      icon: 'laptop',
+      title: 'Layar Laptop',
+      badgeLabel: 'Layar Lebar',
+      layoutHint: 'Tampilan Lega · Banyak Info Sekaligus',
+      description:
+        'Memanfaatkan layar laptop yang lebar agar daftar, peta, dan ringkasan bisa dilihat berdampingan dengan nyaman.',
+    },
+    {
+      id: 'tablet-kiosk',
+      icon: 'tablet',
+      title: 'Layar Tablet / Meja',
+      badgeLabel: 'Layar Sentuh Bersama',
+      layoutHint: 'Huruf Besar · Jelas Dibaca Bareng',
+      description:
+        'Tampilan bersih dengan tulisan dan tombol besar, cocok ditaruh di meja kasir, ruang tunggu, atau posko warga.',
+    },
+    {
+      id: 'cross-platform',
+      icon: 'monitor-smartphone',
+      title: 'HP & Laptop',
+      badgeLabel: 'Rapi di Semua Layar',
+      layoutHint: 'Satu Link · Otomatis Menyesuaikan',
+      description:
+        'Enak dibuka dari HP saat sedang di luar, dan tetap rapi serta lega saat dibuka di laptop.',
+    },
+  ],
+};
+
+function ensureDataDir(): void {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+}
+
+function loadCategories(): CategoryStore {
+  try {
+    ensureDataDir();
+    if (!fs.existsSync(CATEGORIES_FILE)) {
+      fs.writeFileSync(CATEGORIES_FILE, JSON.stringify(DEFAULT_CATEGORIES, null, 2), 'utf8');
+      return structuredClone(DEFAULT_CATEGORIES);
+    }
+    const raw = fs.readFileSync(CATEGORIES_FILE, 'utf8');
+    const parsed = JSON.parse(raw) as Partial<CategoryStore>;
+    return {
+      problems:
+        Array.isArray(parsed.problems) && parsed.problems.length > 0
+          ? parsed.problems
+          : structuredClone(DEFAULT_CATEGORIES.problems),
+      solutions:
+        Array.isArray(parsed.solutions) && parsed.solutions.length > 0
+          ? parsed.solutions
+          : structuredClone(DEFAULT_CATEGORIES.solutions),
+      targetUsers:
+        Array.isArray(parsed.targetUsers) && parsed.targetUsers.length > 0
+          ? parsed.targetUsers
+          : structuredClone(DEFAULT_CATEGORIES.targetUsers),
+      deviceTargets:
+        Array.isArray(parsed.deviceTargets) && parsed.deviceTargets.length > 0
+          ? parsed.deviceTargets
+          : structuredClone(DEFAULT_CATEGORIES.deviceTargets),
+    };
+  } catch (err) {
+    console.error('[loadCategories error]:', err);
+    return structuredClone(DEFAULT_CATEGORIES);
+  }
+}
+
+function saveCategories(store: CategoryStore): void {
+  ensureDataDir();
+  const tmpFile = `${CATEGORIES_FILE}.${process.pid}.tmp`;
+  fs.writeFileSync(tmpFile, JSON.stringify(store, null, 2), 'utf8');
+  fs.renameSync(tmpFile, CATEGORIES_FILE);
+}
+
+interface StoredAdminCredential {
+  username: string;
+  salt: string;
+  hash: string;
+  claimedAt: string;
+}
+
+function loadClaimedAdmin(): StoredAdminCredential | null {
+  try {
+    if (!fs.existsSync(ADMIN_AUTH_FILE)) return null;
+    const raw = fs.readFileSync(ADMIN_AUTH_FILE, 'utf8');
+    const parsed = JSON.parse(raw) as Partial<StoredAdminCredential>;
+    if (
+      typeof parsed.username === 'string' &&
+      typeof parsed.salt === 'string' &&
+      typeof parsed.hash === 'string' &&
+      parsed.username.trim() &&
+      parsed.salt &&
+      parsed.hash
+    ) {
+      return {
+        username: parsed.username.trim(),
+        salt: parsed.salt,
+        hash: parsed.hash,
+        claimedAt: parsed.claimedAt || new Date().toISOString(),
+      };
+    }
+  } catch {
+    // Ignore malformed auth file
+  }
+  return null;
+}
+
+function getAdminStatus(): {
+  configured: boolean;
+  source: 'env' | 'claimed' | 'unclaimed';
+  usernameHint: string;
+} {
+  const envPin = process.env.ADMIN_PIN?.trim() || process.env.ADMIN_PASSWORD?.trim();
+  if (envPin) {
+    return { configured: true, source: 'env', usernameHint: 'admin' };
+  }
+  const claimed = loadClaimedAdmin();
+  if (claimed) {
+    return { configured: true, source: 'claimed', usernameHint: claimed.username };
+  }
+  return { configured: false, source: 'unclaimed', usernameHint: 'admin' };
+}
+
+function signAdminToken(username: string): string {
+  const payload = Buffer.from(
+    JSON.stringify({
+      sub: username,
+      iat: Date.now(),
+      exp: Date.now() + SESSION_TTL_MS,
+    })
+  ).toString('base64url');
+  const sig = crypto
+    .createHmac('sha256', SESSION_SIGNING_SECRET)
+    .update(payload)
+    .digest('base64url');
+  return `${payload}.${sig}`;
+}
+
+function verifyAdminToken(token: string): { username: string } | null {
+  const parts = token.split('.');
+  if (parts.length !== 2) return null;
+  const [payload, sig] = parts;
+  if (!payload || !sig) return null;
+
+  const expectedSig = crypto
+    .createHmac('sha256', SESSION_SIGNING_SECRET)
+    .update(payload)
+    .digest('base64url');
+
+  const sigBuf = Buffer.from(sig);
+  const expectedBuf = Buffer.from(expectedSig);
+  if (sigBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(sigBuf, expectedBuf)) {
+    return null;
+  }
+
+  try {
+    const decoded = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as {
+      sub?: string;
+      exp?: number;
+    };
+    if (
+      typeof decoded.sub === 'string' &&
+      decoded.sub.trim() &&
+      typeof decoded.exp === 'number' &&
+      decoded.exp > Date.now()
+    ) {
+      return { username: decoded.sub.trim() };
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+interface AuthenticatedRequest extends Request {
+  adminUser?: string;
+}
+
+function requireAdminAuth(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  const authHeader = req.headers.authorization || '';
+  if (!authHeader.startsWith('Bearer ')) {
+    res.status(401).json({ error: 'Sesi admin tidak valid atau sudah berakhir. Silakan login kembali.' });
+    return;
+  }
+  const token = authHeader.slice(7).trim();
+  const verified = verifyAdminToken(token);
+  if (!verified) {
+    res.status(401).json({ error: 'Sesi admin tidak valid atau sudah berakhir. Silakan login kembali.' });
+    return;
+  }
+  req.adminUser = verified.username;
+  next();
+}
+
+const loginFailures = new Map<string, { count: number; resetAt: number }>();
+
+function checkLoginRateLimit(ipKey: string): boolean {
+  const now = Date.now();
+  const entry = loginFailures.get(ipKey);
+  if (!entry || entry.resetAt <= now) {
+    return true;
+  }
+  return entry.count < 10;
+}
+
+function recordLoginFailure(ipKey: string): void {
+  const now = Date.now();
+  const entry = loginFailures.get(ipKey);
+  if (!entry || entry.resetAt <= now) {
+    loginFailures.set(ipKey, { count: 1, resetAt: now + 5 * 60 * 1000 });
+  } else {
+    entry.count += 1;
+  }
+}
+
+function clearLoginFailures(ipKey: string): void {
+  loginFailures.delete(ipKey);
+}
+
+function cleanText(value: unknown, maxLen: number): string {
+  if (typeof value !== 'string') return '';
+  return value.trim().replace(/\s+/g, ' ').slice(0, maxLen);
+}
+
+function slugifyId(text: string, prefix: string): string {
+  const base = text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 28);
+  const suffix = crypto.randomBytes(3).toString('hex');
+  return `${prefix}-${base || 'item'}-${suffix}`;
+}
+
+function isValidCategoryKey(value: string): value is CategoryKey {
+  return (
+    value === 'problems' ||
+    value === 'solutions' ||
+    value === 'targetUsers' ||
+    value === 'deviceTargets'
+  );
+}
 
 const EVERYDAY_THEMES = [
   'belanja harian, isi kulkas, dan rencana menu masak keluarga',
@@ -196,10 +691,27 @@ async function generateEverydayMission(
   participantName?: string
 ) {
   const ai = getAiClient();
+  const categories = loadCategories();
+  const liveDeviceIds =
+    categories.deviceTargets.length > 0
+      ? categories.deviceTargets.map((d) => d.id)
+      : [...VALID_DEVICE_IDS];
 
   const chosenTheme =
     EVERYDAY_THEMES[Math.floor(Math.random() * EVERYDAY_THEMES.length)];
   const randomNonce = Math.floor(100000 + Math.random() * 900000);
+
+  const sampleProblemHint = categories.problems
+    .slice(0, 6)
+    .map((p) => p.title)
+    .join(', ');
+  const sampleUserHint = categories.targetUsers
+    .slice(0, 5)
+    .map((u) => u.title)
+    .join(', ');
+  const sampleDeviceHint = categories.deviceTargets
+    .map((d) => `${d.id} (${d.title})`)
+    .join(', ');
 
   const avoidText =
     previousIdeas.length > 0
@@ -209,6 +721,11 @@ async function generateEverydayMission(
   const systemInstruction = `Kamu adalah perancang tantangan aplikasi AI untuk acara GDG Bogor bertema Vibe Coding bagi peserta NON-CODING (tidak punya latar belakang pemrograman).
 
 Tugasmu: Buat SATU ide aplikasi baru yang benar-benar dibutuhkan dalam KEHIDUPAN SEHARI-HARI masyarakat Indonesia.
+
+Referensi kategori aktif di mesin ide:
+- Contoh jenis masalah: ${sampleProblemHint}
+- Contoh target pengguna: ${sampleUserHint}
+- Pilihan deviceId yang tersedia: ${sampleDeviceHint}
 
 Aturan wajib:
 1. Topik HARUS seputar kebutuhan sehari-hari yang nyata, membumi, dan langsung terbayang manfaatnya (rumah tangga, belanja pasar/warung, masak/kulkas, kesehatan keluarga, antar-jemput/perjalanan, belajar anak, iuran warga/kos, atau usaha kecil harian).
@@ -250,7 +767,7 @@ Hasilkan 1 tantangan aplikasi kebutuhan sehari-hari yang unik, kreatif, praktis,
         items: { type: Type.STRING },
       },
       solutionIcon: { type: Type.STRING, enum: [...VALID_SOLUTION_ICONS] },
-      deviceId: { type: Type.STRING, enum: [...VALID_DEVICE_IDS] },
+      deviceId: { type: Type.STRING, enum: liveDeviceIds },
     },
     required: [
       'problemTitle',
@@ -347,6 +864,13 @@ Hasilkan 1 tantangan aplikasi kebutuhan sehari-hari yang unik, kreatif, praktis,
 
   const stamp = Date.now().toString(36);
 
+  const categoriesForDevice = loadCategories().deviceTargets;
+  const fallbackDeviceId = categoriesForDevice[0]?.id || 'mobile';
+  const matchedDeviceId =
+    parsed.deviceId && categoriesForDevice.some((d) => d.id === parsed.deviceId)
+      ? parsed.deviceId
+      : fallbackDeviceId;
+
   return {
     problem: {
       id: `ai-prob-${stamp}`,
@@ -381,9 +905,7 @@ Hasilkan 1 tantangan aplikasi kebutuhan sehari-hari yang unik, kreatif, praktis,
       contextualHowToBuild: String(parsed.solutionHowTo || '').trim(),
       contextualFeatures: features,
     },
-    deviceId: parsed.deviceId && VALID_DEVICE_IDS.includes(parsed.deviceId)
-      ? parsed.deviceId
-      : 'mobile',
+    deviceId: matchedDeviceId,
   };
 }
 
@@ -394,6 +916,268 @@ async function startServer() {
   app.get('/api/health', (_req: Request, res: Response) => {
     res.json({ ok: true });
   });
+
+  app.get('/api/categories', (_req: Request, res: Response) => {
+    const categories = loadCategories();
+    res.json({ categories });
+  });
+
+  app.get('/api/admin/status', (_req: Request, res: Response) => {
+    res.json(getAdminStatus());
+  });
+
+  app.post('/api/admin/bootstrap', (req: Request, res: Response) => {
+    const status = getAdminStatus();
+    if (status.source !== 'unclaimed') {
+      res.status(409).json({
+        error: 'PIN admin sudah aktif. Silakan masukkan PIN untuk masuk.',
+      });
+      return;
+    }
+
+    const body = (req.body ?? {}) as { pin?: unknown; password?: unknown };
+    const pin = String(body.pin ?? body.password ?? '').trim();
+
+    if (!/^\d{6}$/.test(pin)) {
+      res.status(400).json({
+        error: 'PIN admin harus terdiri dari 6 digit angka.',
+      });
+      return;
+    }
+
+    try {
+      ensureDataDir();
+      const salt = crypto.randomBytes(16).toString('hex');
+      const hash = crypto.scryptSync(pin, salt, 64).toString('hex');
+      const payload: StoredAdminCredential = {
+        username: 'admin',
+        salt,
+        hash,
+        claimedAt: new Date().toISOString(),
+      };
+      fs.writeFileSync(ADMIN_AUTH_FILE, JSON.stringify(payload, null, 2), {
+        encoding: 'utf8',
+        flag: 'wx',
+      });
+      const token = signAdminToken('admin');
+      res.status(201).json({ token, username: 'admin' });
+    } catch (err: unknown) {
+      const code = (err as { code?: string })?.code;
+      if (code === 'EEXIST') {
+        res.status(409).json({ error: 'PIN admin sudah aktif sebelumnya.' });
+        return;
+      }
+      console.error('[/api/admin/bootstrap error]:', err);
+      res.status(500).json({ error: 'Gagal menyimpan PIN admin.' });
+    }
+  });
+
+  app.post('/api/admin/login', (req: Request, res: Response) => {
+    const ipKey = req.ip || 'unknown';
+    if (!checkLoginRateLimit(ipKey)) {
+      res.status(429).json({
+        error: 'Terlalu banyak percobaan PIN salah. Coba lagi dalam beberapa menit.',
+      });
+      return;
+    }
+
+    const status = getAdminStatus();
+    if (status.source === 'unclaimed') {
+      res.status(412).json({
+        error: 'PIN admin belum diatur. Silakan buat PIN 6 digit terlebih dahulu.',
+      });
+      return;
+    }
+
+    const body = (req.body ?? {}) as { pin?: unknown; password?: unknown };
+    const pinInput = String(body.pin ?? body.password ?? '').trim();
+
+    if (!/^\d{4,12}$/.test(pinInput)) {
+      res.status(400).json({ error: 'Masukkan PIN angka yang valid.' });
+      return;
+    }
+
+    let valid = false;
+
+    if (status.source === 'env') {
+      const expectedPin =
+        process.env.ADMIN_PIN?.trim() || process.env.ADMIN_PASSWORD?.trim() || '';
+      const inputDigest = crypto.createHash('sha256').update(pinInput).digest();
+      const expectedDigest = crypto.createHash('sha256').update(expectedPin).digest();
+      valid = crypto.timingSafeEqual(inputDigest, expectedDigest);
+    } else {
+      const claimed = loadClaimedAdmin();
+      if (claimed) {
+        const derivedBuf = crypto.scryptSync(pinInput, claimed.salt, 64);
+        const storedBuf = Buffer.from(claimed.hash, 'hex');
+        valid =
+          derivedBuf.length === storedBuf.length &&
+          crypto.timingSafeEqual(derivedBuf, storedBuf);
+      }
+    }
+
+    if (!valid) {
+      recordLoginFailure(ipKey);
+      res.status(401).json({ error: 'PIN admin tidak sesuai.' });
+      return;
+    }
+
+    clearLoginFailures(ipKey);
+    const token = signAdminToken('admin');
+    res.json({ token, username: 'admin' });
+  });
+
+  app.get('/api/admin/me', requireAdminAuth, (req: AuthenticatedRequest, res: Response) => {
+    res.json({ authenticated: true, username: req.adminUser });
+  });
+
+  app.post('/api/admin/logout', (_req: Request, res: Response) => {
+    res.json({ ok: true });
+  });
+
+  app.post(
+    '/api/admin/categories/:category',
+    requireAdminAuth,
+    (req: AuthenticatedRequest, res: Response) => {
+      const { category } = req.params;
+      if (!isValidCategoryKey(category)) {
+        res.status(400).json({ error: 'Kategori tidak valid.' });
+        return;
+      }
+
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const title = cleanText(body.title, 80);
+      const description = cleanText(body.description, 240);
+      const rawIcon = cleanText(body.icon, 40);
+      const isValidIcon = (ALL_VALID_ICONS as readonly string[]).includes(rawIcon);
+
+      if (!title || !description) {
+        res.status(400).json({ error: 'Judul dan deskripsi item wajib diisi.' });
+        return;
+      }
+
+      const store = loadCategories();
+      let createdItem:
+        | StoredProblemItem
+        | StoredSolutionItem
+        | StoredTargetUserItem
+        | StoredDeviceTargetItem;
+
+      if (category === 'problems') {
+        const domain = cleanText(body.domain, 60) || 'Kehidupan Sehari-hari';
+        const shortNoun = cleanText(body.shortNoun, 120) || title.toLowerCase();
+        const item: StoredProblemItem = {
+          id: slugifyId(title, 'prob'),
+          icon: isValidIcon ? rawIcon : 'home',
+          title,
+          domain,
+          shortNoun,
+          description,
+        };
+        store.problems.unshift(item);
+        createdItem = item;
+      } else if (category === 'solutions') {
+        const techStack = cleanText(body.techStack, 70) || 'Praktis · Bantuan AI';
+        const rawFeatures = Array.isArray(body.coreFeatures)
+          ? body.coreFeatures
+          : typeof body.coreFeatures === 'string'
+            ? body.coreFeatures.split(/\r?\n|,/)
+            : [];
+        const coreFeatures = rawFeatures
+          .map((f) => cleanText(f, 90))
+          .filter(Boolean)
+          .slice(0, 4);
+        if (coreFeatures.length === 0) {
+          coreFeatures.push('Langkah praktis berbasis AI untuk pengguna');
+        }
+        const item: StoredSolutionItem = {
+          id: slugifyId(title, 'sol'),
+          icon: isValidIcon ? rawIcon : 'camera',
+          title,
+          techStack,
+          howToBuild: description,
+          coreFeatures,
+        };
+        store.solutions.unshift(item);
+        createdItem = item;
+      } else if (category === 'targetUsers') {
+        const context = cleanText(body.context, 70) || 'Kebutuhan Harian · Praktis';
+        const shortPersona = cleanText(body.shortPersona, 80) || title.toLowerCase();
+        const item: StoredTargetUserItem = {
+          id: slugifyId(title, 'user'),
+          icon: isValidIcon ? rawIcon : 'users',
+          title,
+          shortPersona,
+          context,
+          description,
+        };
+        store.targetUsers.unshift(item);
+        createdItem = item;
+      } else {
+        const badgeLabel = cleanText(body.badgeLabel, 50) || 'Layar Fleksibel';
+        const layoutHint = cleanText(body.layoutHint, 70) || 'Tampilan Bersih · Mudah Dipakai';
+        const item: StoredDeviceTargetItem = {
+          id: slugifyId(title, 'dev'),
+          icon: isValidIcon ? rawIcon : 'smartphone',
+          title,
+          badgeLabel,
+          layoutHint,
+          description,
+        };
+        store.deviceTargets.unshift(item);
+        createdItem = item;
+      }
+
+      saveCategories(store);
+      res.status(201).json({ item: createdItem, categories: store });
+    }
+  );
+
+  app.delete(
+    '/api/admin/categories/:category/:id',
+    requireAdminAuth,
+    (req: AuthenticatedRequest, res: Response) => {
+      const { category, id } = req.params;
+      if (!isValidCategoryKey(category)) {
+        res.status(400).json({ error: 'Kategori tidak valid.' });
+        return;
+      }
+
+      const itemId = cleanText(id, 80);
+      if (!itemId) {
+        res.status(400).json({ error: 'ID item tidak valid.' });
+        return;
+      }
+
+      const store = loadCategories();
+      const list = store[category];
+      if (list.length <= 1) {
+        res.status(400).json({
+          error: 'Minimal harus tersisa 1 item di setiap kategori agar mesin ide tetap berjalan.',
+        });
+        return;
+      }
+
+      const nextList = list.filter((entry) => entry.id !== itemId);
+      if (nextList.length === list.length) {
+        res.status(404).json({ error: 'Item tidak ditemukan.' });
+        return;
+      }
+
+      if (category === 'problems') {
+        store.problems = nextList as StoredProblemItem[];
+      } else if (category === 'solutions') {
+        store.solutions = nextList as StoredSolutionItem[];
+      } else if (category === 'targetUsers') {
+        store.targetUsers = nextList as StoredTargetUserItem[];
+      } else {
+        store.deviceTargets = nextList as StoredDeviceTargetItem[];
+      }
+
+      saveCategories(store);
+      res.json({ categories: store });
+    }
+  );
 
   app.post('/api/generate-mission', async (req: Request, res: Response) => {
     try {

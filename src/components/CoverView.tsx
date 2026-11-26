@@ -1,9 +1,10 @@
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, ShieldCheck } from 'lucide-react';
 import { motion } from 'motion/react';
 import { GdgBogorLogo } from './BrandMark';
 
 interface CoverViewProps {
   onStartMachine: () => void;
+  onOpenAdmin?: () => void;
   isWideProjector?: boolean;
 }
 
@@ -34,9 +35,24 @@ const PILLARS = [
   },
 ];
 
-export function CoverView({ onStartMachine, isWideProjector = false }: CoverViewProps) {
+export function CoverView({
+  onStartMachine,
+  onOpenAdmin,
+  isWideProjector = false,
+}: CoverViewProps) {
   return (
-    <div className="flex-1 min-h-0 flex items-center justify-center px-4 sm:px-8 py-6 bg-white">
+    <div className="relative flex-1 min-h-0 flex items-center justify-center px-4 sm:px-8 py-6 bg-white">
+      {onOpenAdmin && (
+        <button
+          type="button"
+          onClick={onOpenAdmin}
+          title="Admin Dashboard"
+          aria-label="Buka Halaman Admin"
+          className="absolute top-4 right-4 sm:top-6 sm:right-6 z-20 w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#F8FAFC] hover:bg-[#F1F5F9] text-[#475569] hover:text-[#111827] shadow-[0_6px_18px_rgba(15,23,42,0.06)] inline-flex items-center justify-center transition-all cursor-pointer"
+        >
+          <ShieldCheck className="w-5 h-5" aria-hidden="true" />
+        </button>
+      )}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
