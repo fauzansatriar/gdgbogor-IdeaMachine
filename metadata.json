@@ -1,0 +1,6 @@
+{
+  "name": "Idea Machine — GDG Bogor",
+  "description": "Mesin ide 4-kolom interaktif untuk mengundi masalah nyata umum, target pengguna, solusi detail aplikasi Gemini AI & Google Stack, serta target perangkat dilengkapi QR Handover, ekspor PDF, dan Stage Timer.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
