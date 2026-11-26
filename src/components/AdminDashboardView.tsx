@@ -1,13 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
-  Eye,
-  EyeOff,
-  Lock,
   LogOut,
   Plus,
   Search,
-  ShieldCheck,
   Trash2,
 } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -15,12 +11,10 @@ import {
   CategoryKey,
   CategoryPools,
   DeviceTargetItem,
-  PoolIconName,
   ProblemItem,
   SolutionItem,
   TargetUserItem,
 } from '../data/pools';
-import { ReelIcon } from './ReelIcon';
 
 interface AdminDashboardViewProps {
   categories: CategoryPools;
@@ -46,8 +40,7 @@ const CATEGORY_META: Record<
     subtitle: string;
     accent: string;
     softBg: string;
-    icons: PoolIconName[];
-    defaultIcon: PoolIconName;
+    defaultIcon: string;
   }
 > = {
   problems: {
@@ -55,7 +48,6 @@ const CATEGORY_META: Record<
     subtitle: 'Masalah nyata di sekitar',
     accent: '#EA4335',
     softBg: '#FEE2E2',
-    icons: ['utensils', 'hospital', 'recycle', 'wallet', 'cloud-rain', 'file-text', 'home', 'car'],
     defaultIcon: 'home',
   },
   solutions: {
@@ -63,7 +55,6 @@ const CATEGORY_META: Record<
     subtitle: 'Ide aplikasi & fitur AI',
     accent: '#1E8E3E',
     softBg: '#E6F4EA',
-    icons: ['camera', 'globe', 'radio', 'mic', 'calculator', 'calendar', 'bell', 'book-open'],
     defaultIcon: 'camera',
   },
   targetUsers: {
@@ -71,7 +62,6 @@ const CATEGORY_META: Record<
     subtitle: 'Target pengguna aplikasi',
     accent: '#1A73E8',
     softBg: '#E8F0FE',
-    icons: ['store', 'graduation-cap', 'train', 'home', 'users', 'heart-pulse', 'car', 'shopping-bag'],
     defaultIcon: 'users',
   },
   deviceTargets: {
@@ -79,7 +69,6 @@ const CATEGORY_META: Record<
     subtitle: 'Perangkat & ukuran layar',
     accent: '#D97706',
     softBg: '#FEF3C7',
-    icons: ['smartphone', 'laptop', 'tablet', 'monitor-smartphone'],
     defaultIcon: 'smartphone',
   },
 };
@@ -104,7 +93,6 @@ export function AdminDashboardView({
   });
 
   const [pinInput, setPinInput] = useState('');
-  const [showPin, setShowPin] = useState(false);
   const [authSubmitting, setAuthSubmitting] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -115,13 +103,8 @@ export function AdminDashboardView({
 
   // Create form fields
   const [titleInput, setTitleInput] = useState('');
-  const [metaInput, setMetaInput] = useState('');
-  const [secondaryMetaInput, setSecondaryMetaInput] = useState('');
   const [descriptionInput, setDescriptionInput] = useState('');
   const [featuresInput, setFeaturesInput] = useState('');
-  const [selectedIcon, setSelectedIcon] = useState<PoolIconName>(
-    CATEGORY_META.problems.defaultIcon
-  );
 
   useEffect(() => {
     if (adminToken) {
@@ -149,11 +132,8 @@ export function AdminDashboardView({
 
   const handleSelectCategory = (key: CategoryKey) => {
     setActiveCategory(key);
-    setSelectedIcon(CATEGORY_META[key].defaultIcon);
     setSearchQuery('');
     setTitleInput('');
-    setMetaInput('');
-    setSecondaryMetaInput('');
     setDescriptionInput('');
     setFeaturesInput('');
   };
@@ -230,25 +210,15 @@ export function AdminDashboardView({
     const payload: Record<string, unknown> = {
       title,
       description,
-      icon: selectedIcon,
+      icon: CATEGORY_META[activeCategory].defaultIcon,
     };
 
-    if (activeCategory === 'problems') {
-      payload.domain = metaInput.trim() || 'Kehidupan Sehari-hari';
-      payload.shortNoun = secondaryMetaInput.trim() || title.toLowerCase();
-    } else if (activeCategory === 'solutions') {
-      payload.techStack = metaInput.trim() || 'Praktis · Bantuan AI';
+    if (activeCategory === 'solutions') {
       payload.coreFeatures = featuresInput
         .split(/\r?\n/)
         .map((line) => line.trim())
         .filter(Boolean)
         .slice(0, 4);
-    } else if (activeCategory === 'targetUsers') {
-      payload.context = metaInput.trim() || 'Kebutuhan Harian · Praktis';
-      payload.shortPersona = secondaryMetaInput.trim() || title.toLowerCase();
-    } else {
-      payload.badgeLabel = metaInput.trim() || 'Layar Fleksibel';
-      payload.layoutHint = secondaryMetaInput.trim() || 'Tampilan Bersih · Mudah Dipakai';
     }
 
     setIsMutating(true);
@@ -279,8 +249,6 @@ export function AdminDashboardView({
 
       onCategoriesChange(data.categories);
       setTitleInput('');
-      setMetaInput('');
-      setSecondaryMetaInput('');
       setDescriptionInput('');
       setFeaturesInput('');
       onNotify(`Berhasil menambahkan "${title}" ke ${CATEGORY_META[activeCategory].label}.`, 'success');
@@ -348,7 +316,7 @@ export function AdminDashboardView({
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
-          className="w-full max-w-sm space-y-4"
+          className="w-full max-w-md space-y-4"
         >
           <button
             type="button"
@@ -361,24 +329,19 @@ export function AdminDashboardView({
 
           <form
             onSubmit={handleAuthSubmit}
-            className="w-full bg-white rounded-3xl p-6 sm:p-8 shadow-[0_16px_44px_rgba(15,23,42,0.08)] space-y-5"
+            className="w-full bg-white rounded-3xl p-6 sm:p-8 shadow-[0_16px_44px_rgba(15,23,42,0.08)] space-y-6"
           >
-            <div className="flex items-center gap-3.5">
-              <div className="w-11 h-11 rounded-2xl bg-[#E8F0FE] text-[#1A73E8] flex items-center justify-center shrink-0">
-                <ShieldCheck className="w-5 h-5" aria-hidden="true" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-[#111827] leading-tight">
-                  {authStatus.source === 'unclaimed'
-                    ? 'Atur PIN Admin'
-                    : 'PIN Admin'}
-                </h1>
-                <p className="text-xs text-[#64748B] mt-0.5">
-                  {authStatus.source === 'unclaimed'
-                    ? 'Masukkan 6 angka PIN untuk mengaktifkan dashboard'
-                    : 'Masukkan 6 angka PIN untuk masuk dashboard'}
-                </p>
-              </div>
+            <div>
+              <h1 className="text-xl font-bold text-[#111827] leading-tight">
+                {authStatus.source === 'unclaimed'
+                  ? 'Atur PIN Admin'
+                  : 'PIN Admin'}
+              </h1>
+              <p className="text-xs text-[#64748B] mt-1">
+                {authStatus.source === 'unclaimed'
+                  ? 'Masukkan PIN untuk mengaktifkan dashboard'
+                  : 'Masukkan PIN untuk masuk dashboard'}
+              </p>
             </div>
 
             {statusLoading ? (
@@ -386,16 +349,16 @@ export function AdminDashboardView({
                 Memeriksa status akses admin...
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-5">
                 <div>
                   <label htmlFor="admin-pin-input" className="sr-only">
-                    PIN Admin 6 Digit
+                    PIN Admin
                   </label>
                   <div className="relative">
-                    {/* Visual 6-slot PIN indicators backed by a real accessible numeric input */}
+                    {/* Large masked 6-slot PIN boxes */}
                     <div
                       aria-hidden="true"
-                      className="grid grid-cols-6 gap-2 pointer-events-none"
+                      className="grid grid-cols-6 gap-2.5 sm:gap-3 pointer-events-none"
                     >
                       {[0, 1, 2, 3, 4, 5].map((idx) => {
                         const char = pinInput[idx] || '';
@@ -403,7 +366,7 @@ export function AdminDashboardView({
                         return (
                           <div
                             key={idx}
-                            className={`h-13 rounded-2xl flex items-center justify-center text-xl font-bold tabular-nums transition-all ${
+                            className={`h-16 sm:h-[72px] rounded-2xl flex items-center justify-center text-3xl font-bold leading-none transition-all ${
                               char
                                 ? 'bg-[#E8F0FE] text-[#1A73E8]'
                                 : isFocusedSlot
@@ -411,7 +374,7 @@ export function AdminDashboardView({
                                   : 'bg-[#F1F5F9] text-[#94A3B8]'
                             }`}
                           >
-                            {char ? (showPin ? char : '•') : ''}
+                            {char ? '•' : ''}
                           </div>
                         );
                       })}
@@ -419,7 +382,7 @@ export function AdminDashboardView({
 
                     <input
                       id="admin-pin-input"
-                      type="text"
+                      type="password"
                       inputMode="numeric"
                       pattern="[0-9]*"
                       autoComplete="one-time-code"
@@ -427,32 +390,9 @@ export function AdminDashboardView({
                       maxLength={6}
                       value={pinInput}
                       onChange={(e) => handlePinChange(e.target.value)}
-                      aria-label="Masukkan 6 angka PIN admin"
+                      aria-label="Masukkan PIN admin"
                       className="absolute inset-0 w-full h-full opacity-0 cursor-text"
                     />
-                  </div>
-
-                  <div className="mt-2.5 flex items-center justify-between">
-                    <span className="text-[11px] font-medium text-[#64748B]">
-                      {pinInput.length}/6 digit
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setShowPin((prev) => !prev)}
-                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#475569] hover:text-[#111827] cursor-pointer"
-                    >
-                      {showPin ? (
-                        <>
-                          <EyeOff className="w-3.5 h-3.5" aria-hidden="true" />
-                          <span>Sembunyikan</span>
-                        </>
-                      ) : (
-                        <>
-                          <Eye className="w-3.5 h-3.5" aria-hidden="true" />
-                          <span>Lihat angka</span>
-                        </>
-                      )}
-                    </button>
                   </div>
                 </div>
 
@@ -465,16 +405,9 @@ export function AdminDashboardView({
                 <button
                   type="submit"
                   disabled={authSubmitting || pinInput.length < 6}
-                  className="w-full min-h-[46px] px-6 py-2.5 rounded-2xl bg-[#1A73E8] hover:bg-[#1557B0] text-white text-sm font-bold inline-flex items-center justify-center gap-2 transition-colors cursor-pointer disabled:opacity-50 shadow-[0_6px_20px_rgba(26,115,232,0.22)]"
+                  className="w-full min-h-[50px] px-6 py-3 rounded-2xl bg-[#1A73E8] hover:bg-[#1557B0] text-white text-sm font-bold inline-flex items-center justify-center transition-colors cursor-pointer disabled:opacity-50 shadow-[0_6px_20px_rgba(26,115,232,0.22)]"
                 >
-                  <Lock className="w-4 h-4" aria-hidden="true" />
-                  <span>
-                    {authSubmitting
-                      ? 'Memverifikasi...'
-                      : authStatus.source === 'unclaimed'
-                        ? 'Simpan PIN & Masuk'
-                        : 'Masuk Dashboard'}
-                  </span>
+                  <span>{authSubmitting ? 'Memverifikasi...' : 'Masuk'}</span>
                 </button>
               </div>
             )}
@@ -512,8 +445,7 @@ export function AdminDashboardView({
           </div>
 
           <div className="flex items-center gap-2.5 shrink-0">
-            <span className="px-3 py-1.5 rounded-xl bg-[#E8F0FE] text-[#1A73E8] text-xs font-bold inline-flex items-center gap-1.5">
-              <ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" />
+            <span className="px-3 py-1.5 rounded-xl bg-[#E8F0FE] text-[#1A73E8] text-xs font-bold inline-flex items-center">
               <span>{adminUsername || 'admin'}</span>
             </span>
             <button
@@ -612,50 +544,6 @@ export function AdminDashboardView({
 
               <div>
                 <label className="block text-xs font-semibold text-[#475569] mb-1">
-                  {activeCategory === 'problems'
-                    ? 'Bidang / Konteks'
-                    : activeCategory === 'solutions'
-                      ? 'Ringkasan Teknologi'
-                      : activeCategory === 'targetUsers'
-                        ? 'Konteks Pengguna'
-                        : 'Label Ukuran Layar'}
-                </label>
-                <input
-                  type="text"
-                  value={metaInput}
-                  onChange={(e) => setMetaInput(e.target.value)}
-                  maxLength={70}
-                  placeholder={
-                    activeCategory === 'problems'
-                      ? 'Kehidupan Sehari-hari'
-                      : activeCategory === 'solutions'
-                        ? 'Praktis · Bantuan AI'
-                        : activeCategory === 'targetUsers'
-                          ? 'Sibuk · Butuh Cepat & Simpel'
-                          : 'Layar Ringkas'
-                  }
-                  className="w-full min-h-[42px] px-3.5 py-2 rounded-xl bg-[#F1F5F9] focus:bg-white focus:ring-2 focus:ring-[#1A73E8] focus:outline-none text-sm font-medium text-[#111827]"
-                />
-              </div>
-
-              {activeCategory === 'deviceTargets' && (
-                <div>
-                  <label className="block text-xs font-semibold text-[#475569] mb-1">
-                    Petunjuk Tampilan
-                  </label>
-                  <input
-                    type="text"
-                    value={secondaryMetaInput}
-                    onChange={(e) => setSecondaryMetaInput(e.target.value)}
-                    maxLength={70}
-                    placeholder="Contoh: Tombol Besar · Satu Layar"
-                    className="w-full min-h-[42px] px-3.5 py-2 rounded-xl bg-[#F1F5F9] focus:bg-white focus:ring-2 focus:ring-[#1A73E8] focus:outline-none text-sm font-medium text-[#111827]"
-                  />
-                </div>
-              )}
-
-              <div>
-                <label className="block text-xs font-semibold text-[#475569] mb-1">
                   {activeCategory === 'solutions' ? 'Cara Kerja Aplikasi' : 'Deskripsi'}
                 </label>
                 <textarea
@@ -682,33 +570,6 @@ export function AdminDashboardView({
                   />
                 </div>
               )}
-
-              <div>
-                <span className="block text-xs font-semibold text-[#475569] mb-1.5">
-                  Pilih Ikon
-                </span>
-                <div className="flex flex-wrap gap-2">
-                  {activeMeta.icons.map((iconName) => {
-                    const active = selectedIcon === iconName;
-                    return (
-                      <button
-                        key={iconName}
-                        type="button"
-                        onClick={() => setSelectedIcon(iconName)}
-                        aria-label={`Pilih ikon ${iconName}`}
-                        className={`w-9 h-9 rounded-xl inline-flex items-center justify-center transition-all cursor-pointer ${
-                          active
-                            ? 'text-white shadow-sm'
-                            : 'bg-[#F1F5F9] text-[#475569] hover:bg-[#E2E8F0]'
-                        }`}
-                        style={active ? { backgroundColor: activeMeta.accent } : undefined}
-                      >
-                        <ReelIcon name={iconName} className="w-4 h-4" />
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
             </div>
 
             <button
@@ -755,15 +616,6 @@ export function AdminDashboardView({
             ) : (
               <div className="space-y-2.5 max-h-[540px] overflow-y-auto pr-1">
                 {activeItems.map((item) => {
-                  const metaLine =
-                    activeCategory === 'problems'
-                      ? (item as ProblemItem).domain
-                      : activeCategory === 'solutions'
-                        ? (item as SolutionItem).techStack
-                        : activeCategory === 'targetUsers'
-                          ? (item as TargetUserItem).context
-                          : `${(item as DeviceTargetItem).badgeLabel} · ${(item as DeviceTargetItem).layoutHint}`;
-
                   const descText =
                     activeCategory === 'solutions'
                       ? (item as SolutionItem).howToBuild
@@ -776,44 +628,30 @@ export function AdminDashboardView({
                       key={item.id}
                       className="rounded-2xl bg-[#F8FAFC] p-4 flex items-start justify-between gap-3.5"
                     >
-                      <div className="flex items-start gap-3 min-w-0">
-                        <div
-                          className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mt-0.5"
-                          style={{
-                            backgroundColor: activeMeta.softBg,
-                            color: activeMeta.accent,
-                          }}
-                        >
-                          <ReelIcon name={item.icon} className="w-5 h-5" />
-                        </div>
-                        <div className="min-w-0 space-y-1">
-                          <div className="text-[11px] font-bold uppercase tracking-wide text-[#64748B]">
-                            {metaLine}
-                          </div>
-                          <h3 className="text-sm font-bold text-[#111827] leading-snug">
-                            {item.title}
-                          </h3>
-                          <p className="text-xs text-[#4B5563] leading-relaxed">
-                            {descText}
-                          </p>
-                          {activeCategory === 'solutions' &&
-                            (item as SolutionItem).coreFeatures?.length > 0 && (
-                              <ul className="pt-1 space-y-0.5">
-                                {(item as SolutionItem).coreFeatures.map((feat, idx) => (
-                                  <li
-                                    key={idx}
-                                    className="text-[11px] text-[#475569] flex items-center gap-1.5"
-                                  >
-                                    <span
-                                      className="w-1.5 h-1.5 rounded-full shrink-0"
-                                      style={{ backgroundColor: activeMeta.accent }}
-                                    />
-                                    <span>{feat}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                        </div>
+                      <div className="min-w-0 space-y-1">
+                        <h3 className="text-sm font-bold text-[#111827] leading-snug">
+                          {item.title}
+                        </h3>
+                        <p className="text-xs text-[#4B5563] leading-relaxed">
+                          {descText}
+                        </p>
+                        {activeCategory === 'solutions' &&
+                          (item as SolutionItem).coreFeatures?.length > 0 && (
+                            <ul className="pt-1 space-y-0.5">
+                              {(item as SolutionItem).coreFeatures.map((feat, idx) => (
+                                <li
+                                  key={idx}
+                                  className="text-[11px] text-[#475569] flex items-center gap-1.5"
+                                >
+                                  <span
+                                    className="w-1.5 h-1.5 rounded-full shrink-0"
+                                    style={{ backgroundColor: activeMeta.accent }}
+                                  />
+                                  <span>{feat}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
                       </div>
 
                       <button

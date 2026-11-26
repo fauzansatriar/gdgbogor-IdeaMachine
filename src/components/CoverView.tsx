@@ -41,14 +41,28 @@ export function CoverView({
   isWideProjector = false,
 }: CoverViewProps) {
   return (
-    <div className="relative flex-1 min-h-0 flex items-center justify-center px-4 sm:px-8 py-6 bg-white">
+    <div className="relative overflow-hidden flex-1 min-h-0 flex items-center justify-center px-4 sm:px-8 py-6 bg-white">
+      {/* Subtle Google Brand Edge Gradients (strictly confined to outer edges/corners) */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 z-0"
+        style={{
+          backgroundImage: [
+            'radial-gradient(42% 46% at 0% 0%, rgba(66, 133, 244, 0.16) 0%, rgba(66, 133, 244, 0.05) 48%, rgba(255, 255, 255, 0) 82%)',
+            'radial-gradient(40% 44% at 100% 0%, rgba(234, 67, 53, 0.15) 0%, rgba(234, 67, 53, 0.04) 46%, rgba(255, 255, 255, 0) 80%)',
+            'radial-gradient(42% 46% at 0% 100%, rgba(251, 188, 4, 0.17) 0%, rgba(251, 188, 4, 0.05) 46%, rgba(255, 255, 255, 0) 80%)',
+            'radial-gradient(42% 46% at 100% 100%, rgba(52, 168, 83, 0.16) 0%, rgba(52, 168, 83, 0.05) 48%, rgba(255, 255, 255, 0) 82%)',
+          ].join(', '),
+        }}
+      />
+
       {onOpenAdmin && (
         <button
           type="button"
           onClick={onOpenAdmin}
           title="Admin Dashboard"
           aria-label="Buka Halaman Admin"
-          className="absolute top-4 right-4 sm:top-6 sm:right-6 z-20 w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#F8FAFC] hover:bg-[#F1F5F9] text-[#475569] hover:text-[#111827] shadow-[0_6px_18px_rgba(15,23,42,0.06)] inline-flex items-center justify-center transition-all cursor-pointer"
+          className="absolute top-4 right-4 sm:top-6 sm:right-6 z-20 w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-white/85 backdrop-blur-md hover:bg-white text-[#475569] hover:text-[#111827] shadow-[0_6px_18px_rgba(15,23,42,0.07)] inline-flex items-center justify-center transition-all cursor-pointer"
         >
           <ShieldCheck className="w-5 h-5" aria-hidden="true" />
         </button>
@@ -57,7 +71,7 @@ export function CoverView({
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-        className={`w-full flex flex-col items-center text-center ${
+        className={`relative z-10 w-full flex flex-col items-center text-center ${
           isWideProjector ? 'max-w-5xl' : 'max-w-4xl'
         }`}
       >

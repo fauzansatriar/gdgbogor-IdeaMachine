@@ -61,11 +61,12 @@ Instead of static prompts or engineering jargon, the operator enters a participa
 .
 ├── docs/
 │   └── images/
-│       └── idea-machine-isometric.jpg   # Clean isometric UI showcase graphic
+│       └── idea-machine-isometric.jpg   # Clean isometric rounded-corner main screen showcase
 ├── src/
 │   ├── components/
+│   │   ├── AdminDashboardView.tsx       # 6-digit PIN admin dashboard (CRUD 4 categories)
 │   │   ├── BrandMark.tsx                # GDG Bogor mark & 4-color spectrum bar
-│   │   ├── CoverView.tsx                # Stage cover view
+│   │   ├── CoverView.tsx                # Stage cover view & corner Google edge gradients
 │   │   ├── FinalizedRecapModal.tsx      # 5-participant summary & PDF export modal
 │   │   ├── MissionBriefView.tsx         # Mobile QR brief & 3D rolling thermal receipt
 │   │   ├── MissionResultShowcase.tsx    # Progressive stage reveal & Kartu Misi
@@ -149,7 +150,9 @@ npm run lint
 | Method | Endpoint | Purpose |
 | :--- | :--- | :--- |
 | `GET` | `/api/health` | Health check endpoint returning `{ "ok": true }`. |
+| `GET` | `/api/categories` | Returns the live 4-category pools (`problems`, `solutions`, `targetUsers`, `deviceTargets`). |
 | `POST` | `/api/generate-mission` | Generates a structured Indonesian everyday mission (`problem`, `targetUser`, `solution`, `deviceId`) using Gemini structured outputs with multi-model failover (`gemini-4-hydrogen` / `gemini-3.1-flash-lite`). |
+| `POST` / `DELETE` | `/api/admin/categories/:category` | PIN-authenticated endpoints to add or remove items in any of the 4 Idea Machine categories. |
 
 ---
 
