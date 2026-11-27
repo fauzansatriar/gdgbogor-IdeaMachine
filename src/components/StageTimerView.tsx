@@ -152,21 +152,39 @@ export function StageTimerView({ isWideProjector = false }: { isWideProjector?: 
       transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
       className="relative flex-1 min-h-0 flex flex-col items-center justify-center px-4 sm:px-8 py-4 overflow-hidden bg-white"
     >
-      {/* Soft Ambient Gradient Background Layer */}
+      {/* Smooth Crossfading Soft Ambient Gradient Background Layers */}
       <div
-        className={`pointer-events-none absolute inset-0 transition-opacity duration-500 ${
-          isDramatic || isFinished
-            ? 'opacity-100 bg-[radial-gradient(circle_at_center,rgba(234,67,53,0.12)_0%,rgba(249,115,22,0.08)_40%,transparent_72%)]'
-            : 'opacity-100 bg-[radial-gradient(circle_at_top,rgba(66,133,244,0.08)_0%,rgba(52,168,83,0.05)_42%,transparent_75%)]'
+        className={`pointer-events-none absolute inset-0 transition-opacity duration-700 ease-out ${
+          isDramatic || isFinished ? 'opacity-0' : 'opacity-100'
         }`}
+        style={{
+          backgroundImage:
+            'radial-gradient(95% 78% at 50% 34%, rgba(66, 133, 244, 0.09) 0%, rgba(52, 168, 83, 0.045) 44%, rgba(255, 255, 255, 0) 80%)',
+        }}
+        aria-hidden="true"
+      />
+      <div
+        className={`pointer-events-none absolute inset-0 transition-opacity duration-700 ease-out ${
+          isDramatic || isFinished ? 'opacity-100' : 'opacity-0'
+        }`}
+        style={{
+          backgroundImage:
+            'radial-gradient(95% 82% at 50% 42%, rgba(234, 67, 53, 0.12) 0%, rgba(249, 115, 22, 0.07) 42%, rgba(251, 191, 36, 0.025) 64%, rgba(255, 255, 255, 0) 84%)',
+        }}
         aria-hidden="true"
       />
 
-      {/* Subtle Bottom Gradient Audio Bar Wave Background */}
+      {/* Subtle Bottom Gradient Audio Bar Wave Background (Masked Smoothly, Zero Seam) */}
       <div
         className={`pointer-events-none absolute inset-x-0 bottom-0 z-0 flex items-end justify-between gap-1 sm:gap-1.5 px-2 sm:px-6 overflow-hidden ${
           isWideProjector ? 'h-40 xl:h-48' : 'h-28 sm:h-36'
         }`}
+        style={{
+          WebkitMaskImage:
+            'linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.45) 38%, rgba(0, 0, 0, 1) 76%)',
+          maskImage:
+            'linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.45) 38%, rgba(0, 0, 0, 1) 76%)',
+        }}
         aria-hidden="true"
       >
         {waveBars.map((bar, idx) => {
@@ -203,9 +221,6 @@ export function StageTimerView({ isWideProjector = false }: { isWideProjector?: 
             />
           );
         })}
-
-        {/* Soft Mist Fade so Wave Blends Gently into Background */}
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-14 bg-gradient-to-b from-white via-white/75 to-transparent" />
       </div>
 
       {/* Foreground Centered Timer Content */}

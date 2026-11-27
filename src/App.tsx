@@ -1591,10 +1591,10 @@ export default function App() {
       {activePage !== 'admin' && (
         <aside
           aria-label="Panduan Tombol Cepat Presentasi"
-          className="fixed bottom-3.5 right-4 z-30 hidden sm:flex items-center gap-3 px-3 py-1.5 rounded-xl bg-white/95 backdrop-blur-xs shadow-[0_8px_24px_rgba(15,23,42,0.08)] text-[11px] font-semibold text-[#475569] pointer-events-none select-none"
+          className="fixed bottom-3.5 right-4 z-30 hidden sm:flex items-center gap-3 px-3 py-1.5 rounded-xl bg-white/95 backdrop-blur-xs shadow-[0_8px_24px_rgba(15,23,42,0.08)] font-display text-[11px] font-semibold text-[#475569] pointer-events-none select-none"
         >
           <div className="flex items-center gap-1.5">
-            <kbd className="px-1.5 py-0.5 rounded-md bg-[#F1F5F9] text-[10px] font-bold text-[#111827]">
+            <kbd className="px-1.5 py-0.5 rounded-md bg-[#F1F5F9] font-display text-[10px] font-bold text-[#111827]">
               F
             </kbd>
             <span>{isNativeFullscreen ? 'Keluar Layar Penuh' : 'Layar Penuh'}</span>
@@ -1609,7 +1609,7 @@ export default function App() {
                 : 'opacity-70'
             }`}
           >
-            <kbd className="px-1.5 py-0.5 rounded-md bg-[#F1F5F9] text-[10px] font-bold text-[#111827]">
+            <kbd className="px-1.5 py-0.5 rounded-md bg-[#F1F5F9] font-display text-[10px] font-bold text-[#111827]">
               SPACE
             </kbd>
             <span>Putar Mesin</span>

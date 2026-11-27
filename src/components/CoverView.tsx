@@ -13,19 +13,19 @@ const PILLARS = [
     step: '01',
     title: 'Masalah Nyata',
     detail: 'Kesulitan sehari-hari di sekitar kita',
-    color: '#4285F4',
-  },
-  {
-    step: '02',
-    title: 'Siapa Penggunanya',
-    detail: 'Orang yang langsung terbantu',
     color: '#EA4335',
   },
   {
-    step: '03',
+    step: '02',
     title: 'Ide Aplikasinya',
     detail: 'Aplikasi AI apa yang mau dibuat',
     color: '#34A853',
+  },
+  {
+    step: '03',
+    title: 'Siapa Penggunanya',
+    detail: 'Orang yang langsung terbantu',
+    color: '#4285F4',
   },
   {
     step: '04',
@@ -42,31 +42,22 @@ export function CoverView({
 }: CoverViewProps) {
   return (
     <div className="relative overflow-hidden flex-1 min-h-0 flex items-center justify-center px-4 sm:px-8 py-6 bg-white">
-      {/* Curved Bottom-Edge Horizon Glow Gradient in Google Brand Colors */}
+      {/* Concentric Bottom Radial Gradient in Google Brand Colors (Yellow -> Green -> Blue -> Red) */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 bottom-0 h-[56%] z-0 overflow-hidden"
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-[36%] z-0 overflow-hidden"
+        style={{
+          WebkitMaskImage:
+            'linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.5) 28%, rgba(0, 0, 0, 1) 62%)',
+          maskImage:
+            'linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.5) 28%, rgba(0, 0, 0, 1) 62%)',
+        }}
       >
         <div
-          className="absolute inset-0"
+          className="absolute inset-x-0 -bottom-10 top-0 blur-2xl"
           style={{
-            background:
-              'linear-gradient(90deg, rgba(66, 133, 244, 0.44) 0%, rgba(234, 67, 53, 0.42) 34%, rgba(251, 188, 4, 0.42) 68%, rgba(52, 168, 83, 0.44) 100%)',
-            WebkitMaskImage:
-              'radial-gradient(125% 96% at 50% 108%, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.78) 34%, rgba(0, 0, 0, 0.28) 60%, rgba(0, 0, 0, 0) 84%)',
-            maskImage:
-              'radial-gradient(125% 96% at 50% 108%, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.78) 34%, rgba(0, 0, 0, 0.28) 60%, rgba(0, 0, 0, 0) 84%)',
-          }}
-        />
-        <div
-          className="absolute inset-x-[-8%] bottom-[-24%] h-[78%] blur-2xl"
-          style={{
-            backgroundImage: [
-              'radial-gradient(36% 65% at 18% 92%, rgba(66, 133, 244, 0.48) 0%, rgba(66, 133, 244, 0) 75%)',
-              'radial-gradient(34% 68% at 44% 96%, rgba(234, 67, 53, 0.45) 0%, rgba(234, 67, 53, 0) 75%)',
-              'radial-gradient(34% 66% at 68% 94%, rgba(251, 188, 4, 0.44) 0%, rgba(251, 188, 4, 0) 75%)',
-              'radial-gradient(36% 65% at 88% 92%, rgba(52, 168, 83, 0.46) 0%, rgba(52, 168, 83, 0) 75%)',
-            ].join(', '),
+            backgroundImage:
+              'radial-gradient(52% 112% at 50% 22%, rgba(251, 188, 4, 0.8) 0%, rgba(52, 168, 83, 0.78) 28%, rgba(66, 133, 244, 0.82) 55%, rgba(234, 67, 53, 0.88) 79%, rgba(234, 67, 53, 0) 97%)',
           }}
         />
       </div>
@@ -172,7 +163,7 @@ export function CoverView({
                 : 'min-h-[52px] px-9 py-3.5 text-base'
             }`}
           >
-            <span>Mulai Idea Machine</span>
+            <span>Mulai</span>
             <ArrowRight className="w-5 h-5" aria-hidden="true" />
           </button>
         </div>
