@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import crypto from 'crypto';
-import express, { NextFunction, Request, Response } from 'express';
+import express from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -53,8 +54,6 @@ const VALID_USER_ICONS = [
 const VALID_SOLUTION_ICONS = [
   'camera',
   'globe',
-  'radio',
-  'mic',
   'calculator',
   'calendar',
   'bell',
@@ -68,6 +67,8 @@ const ALL_VALID_ICONS = [
   ...VALID_PROBLEM_ICONS,
   ...VALID_USER_ICONS,
   ...VALID_SOLUTION_ICONS,
+  'mic',
+  'radio',
   'smartphone',
   'laptop',
   'tablet',
@@ -131,171 +132,162 @@ interface CategoryStore {
 const DEFAULT_CATEGORIES: Omit<CategoryStore, 'tasks'> = {
   problems: [
     {
-      id: 'food-waste',
-      icon: 'utensils',
-      title: 'Stok Makanan Sering Terbuang',
-      domain: 'Kehidupan Sehari-hari',
-      shortNoun: 'bahan makanan di kulkas yang sering lupa dimasak sampai basi',
-      description:
-        'Makanan di rumah atau usaha sering keburu basi karena lupa stoknya dan bingung mau diolah jadi apa.',
-    },
-    {
-      id: 'queue-service',
-      icon: 'hospital',
-      title: 'Antrean Panjang & Bingung Syarat',
-      domain: 'Layanan Umum',
-      shortNoun: 'antrean layanan yang lama dan syarat dokumen yang membingungkan',
-      description:
-        'Banyak waktu terbuang di ruang tunggu karena tidak tahu perkiraan giliran dan berkas apa yang harus disiapkan.',
-    },
-    {
-      id: 'waste-sorting',
-      icon: 'recycle',
-      title: 'Bingung Pilah Sampah & Daur Ulang',
-      domain: 'Lingkungan Sekitar',
-      shortNoun: 'cara memilah sampah yang benar dan mencari tempat setor daur ulang',
-      description:
-        'Orang sering ragu mana sampah yang bisa didaur ulang dan tidak tahu harus setor ke mana.',
-    },
-    {
-      id: 'cashflow-stock',
+      id: 'personal-expense',
       icon: 'wallet',
-      title: 'Catatan Uang & Stok Berantakan',
-      domain: 'Usaha & Harian',
-      shortNoun: 'catatan pemasukan, pengeluaran, dan sisa barang yang tercecer',
+      title: 'Pengeluaran Harian Sering Lupa Dicatat',
+      domain: 'Keuangan Pribadi',
+      shortNoun: 'pengeluaran harian yang sering lupa dicatat',
       description:
-        'Mencatat uang masuk-keluar di kertas atau chat bikin pusing saat mau cek untung dan sisa barang.',
+        'Jajan kecil, ongkos, dan belanja harian sering lupa dicatat sehingga tiba-tiba uang bulanan menipis.',
     },
     {
-      id: 'weather-mobility',
-      icon: 'cloud-rain',
-      title: 'Cuaca Mendadak & Macet di Jalan',
-      domain: 'Perjalanan Harian',
-      shortNoun: 'hujan deras, genangan, dan macet mendadak saat di perjalanan',
+      id: 'personal-todo',
+      icon: 'calendar',
+      title: 'Tugas & Rutinitas Harian Sering Terlewat',
+      domain: 'Aktivitas Harian',
+      shortNoun: 'daftar tugas dan rutinitas harian yang tercecer',
       description:
-        'Perjalanan sering terganggu hujan atau rute macet tanpa tahu jalur alternatif yang lebih aman.',
+        'Daftar pekerjaan, belanjaan, dan jadwal harian tercecer di chat atau catatan terpisah sehingga sering ada yang terlewat.',
     },
     {
-      id: 'info-overload',
-      icon: 'file-text',
-      title: 'Bacaan & Catatan Terlalu Panjang',
-      domain: 'Belajar & Kerja',
-      shortNoun: 'dokumen tebal, catatan rapat, atau materi belajar yang panjang',
+      id: 'personal-fridge',
+      icon: 'utensils',
+      title: 'Bingung Masak Apa dari Bahan di Kulkas',
+      domain: 'Dapur Pribadi',
+      shortNoun: 'bahan masakan di kulkas yang bingung mau diolah jadi apa',
       description:
-        'Teks dan catatan yang terlalu panjang bikin malas baca dan sulit tahu langkah apa yang harus dilakukan dulu.',
+        'Bahan makanan di kulkas sering tidak terpakai karena bingung mau dimasak jadi menu apa yang cepat dan mudah.',
+    },
+    {
+      id: 'personal-study',
+      icon: 'book-open',
+      title: 'Catatan & Materi Bacaan Terlalu Panjang',
+      domain: 'Belajar Pribadi',
+      shortNoun: 'materi bacaan dan catatan belajar yang terlalu panjang',
+      description:
+        'Catatan kuliah atau artikel panjang susah dipelajari ulang dengan cepat saat butuh persiapan ujian atau rapat.',
+    },
+    {
+      id: 'personal-reminder',
+      icon: 'bell',
+      title: 'Jadwal Vitamin & Tagihan Rutin Sering Lupa',
+      domain: 'Pengingat Pribadi',
+      shortNoun: 'jadwal minum vitamin dan tanggal bayar tagihan bulanan',
+      description:
+        'Jadwal minum vitamin harian dan tanggal jatuh tempo tagihan listrik, air, atau internet sering terlewat.',
     },
   ],
   targetUsers: [
     {
-      id: 'umkm-owner',
-      icon: 'store',
-      title: 'Pemilik Usaha Kecil & Pedagang',
-      shortPersona: 'pemilik usaha kecil',
-      context: 'Sibuk · Butuh Cepat & Simpel',
+      id: 'young-workers',
+      icon: 'users',
+      title: 'Pekerja Muda & Anak Kos',
+      shortPersona: 'pekerja muda dan anak kos',
+      context: 'Mandiri · Praktis Sehari-hari',
       description:
-        'Pemilik warung atau toko yang mengurus semuanya sendiri dan butuh aplikasi praktis tanpa belajar hal rumit.',
+        'Orang yang ingin memantau uang jajan dan kebutuhan bulanan pribadi agar lebih terkontrol dan hemat.',
+    },
+    {
+      id: 'busy-individuals',
+      icon: 'users',
+      title: 'Pekerja & Pelajar Sibuk',
+      shortPersona: 'pekerja dan pelajar sibuk',
+      context: 'Rapi · Mudah Dicek Cepat',
+      description:
+        'Orang yang butuh daftar kerja harian yang rapi dan langsung terlihat mana yang harus diselesaikan lebih dulu.',
+    },
+    {
+      id: 'home-cooks',
+      icon: 'home',
+      title: 'Penghuni Kos & Keluarga di Rumah',
+      shortPersona: 'penghuni kos atau keluarga di rumah',
+      context: 'Dapur Pribadi · Hemat Bahan',
+      description:
+        'Orang yang masak sendiri di rumah atau kos dan ingin ide menu harian sederhana dari bahan yang sudah ada.',
     },
     {
       id: 'students',
       icon: 'graduation-cap',
       title: 'Pelajar & Mahasiswa',
       shortPersona: 'pelajar dan mahasiswa',
-      context: 'Aktif · Hemat Waktu',
+      context: 'Belajar Mandiri · Ringkas',
       description:
-        'Anak sekolah atau kuliah yang butuh info cepat, ringkas, dan gampang dipakai di sela jadwal padat.',
+        'Anak sekolah atau mahasiswa yang ingin belajar lebih cepat dari rangkuman catatan dan latihan kuis singkat.',
     },
     {
-      id: 'commuters',
-      icon: 'train',
-      title: 'Pekerja yang Sering di Jalan',
-      shortPersona: 'pekerja yang aktif di jalan',
-      context: 'Buru-buru · Pakai Sambil Jalan',
+      id: 'self-care-users',
+      icon: 'heart-pulse',
+      title: 'Individu yang Mengatur Jadwal Rutin',
+      shortPersona: 'orang yang mengatur jadwal rutin harian',
+      context: 'Teratur · Bebas Lupa',
       description:
-        'Orang yang sering mengambil keputusan cepat di perjalanan dan butuh panduan yang langsung jelas.',
-    },
-    {
-      id: 'young-families',
-      icon: 'home',
-      title: 'Keluarga Muda & Ibu Rumah Tangga',
-      shortPersona: 'keluarga muda di rumah',
-      context: 'Kebutuhan Rumah · Praktis',
-      description:
-        'Pengurus rumah tangga yang mengatur belanja, jadwal keluarga, dan pengeluaran rutin tiap minggu.',
-    },
-    {
-      id: 'community-volunteers',
-      icon: 'users',
-      title: 'Warga & Relawan Komunitas',
-      shortPersona: 'warga dan relawan komunitas',
-      context: 'Gotong Royong · Saling Bantu',
-      description:
-        'Warga atau relawan yang ingin mengumpulkan dan membagikan informasi penting ke banyak orang dengan cepat.',
+        'Orang yang ingin jadwal kesehatan dan tagihan rutin bulanan tercatat rapi di satu tempat dengan pengingat jelas.',
     },
   ],
   solutions: [
     {
-      id: 'vision-maps',
-      icon: 'camera',
-      title: 'Aplikasi Foto Cerdas & Peta Terdekat',
-      techStack: 'Baca Foto AI · Peta Lokasi',
-      howToBuild:
-        'Pengguna cukup foto situasi di depannya, AI langsung baca fotonya dan kasih saran, lalu peta menunjukkan lokasi tujuan terdekat.',
-      coreFeatures: [
-        'Foto langsung pakai kamera HP atau upload gambar',
-        'AI membaca foto lalu memberi saran langkah yang jelas',
-        'Menampilkan titik lokasi terdekat di peta',
-      ],
-    },
-    {
-      id: 'search-cloudrun',
-      icon: 'globe',
-      title: 'Asisten Pencari Info & Peringatan Cepat',
-      techStack: 'Cari Info Terbaru · Ringkasan AI',
-      howToBuild:
-        'Aplikasi mencari informasi terbaru secara otomatis, menyaring mana yang paling penting, lalu merangkumnya jadi panduan singkat.',
-      coreFeatures: [
-        'Cari kabar dan info terbaru secara otomatis',
-        'Merangkum situasi penting agar langsung paham',
-        'Checklist langkah cepat yang bisa dibagikan',
-      ],
-    },
-    {
-      id: 'firestore-triage',
-      icon: 'radio',
-      title: 'Papan Laporan Bareng & Pilah Otomatis',
-      techStack: 'Update Langsung · Pilah Prioritas AI',
-      howToBuild:
-        'Siapa saja bisa kirim laporan singkat, AI otomatis mengelompokkan mana yang paling mendesak, lalu langsung tampil di papan bersama.',
-      coreFeatures: [
-        'Form kirim laporan cepat hanya dalam 10 detik',
-        'AI otomatis menandai laporan mana yang paling penting',
-        'Papan pantau bersama yang langsung terupdate',
-      ],
-    },
-    {
-      id: 'voice-handsfree',
-      icon: 'mic',
-      title: 'Asisten Suara (Ngomong Langsung)',
-      techStack: 'Perintah Suara · Jawaban Suara AI',
-      howToBuild:
-        'Pengguna tinggal ngomong saat tangan lagi sibuk, AI mengerti maksudnya, membantu mencatat atau menghitung, lalu menjawab lewat suara.',
-      coreFeatures: [
-        'Tombol rekam suara besar yang gampang dipencet',
-        'AI langsung mencatat, menghitung, atau menjawab pertanyaan',
-        'Teks ringkas di layar untuk cek ulang hasil',
-      ],
-    },
-    {
-      id: 'structured-estimator',
+      id: 'expense-tracker',
       icon: 'calculator',
-      title: 'Perapi Catatan & Penghitung Otomatis',
-      techStack: 'Baca Catatan · Hitung Perkiraan',
+      title: 'Pencatat Pengeluaran & Struk Harian',
+      techStack: 'Input Cepat · Baca Struk · Rekap Saldo',
       howToBuild:
-        'Foto catatan berantakan, struk belanja, atau tempel teks panjang—aplikasi langsung merapikannya jadi tabel jelas plus hitungan biaya atau waktu.',
+        'Aplikasi pencatat keuangan pribadi: ketik nominal pengeluaran atau foto struk belanja, lalu lihat total pengeluaran per kategori dan sisa anggaran bulan ini.',
       coreFeatures: [
-        'Upload foto catatan kertas atau tempel teks apa adanya',
-        'Otomatis berubah jadi daftar & tabel yang rapi',
-        'Menghitung perkiraan biaya, waktu, atau penghematan',
+        'Catat nominal pengeluaran cepat berdasarkan kategori',
+        'Upload foto struk belanja untuk isi data otomatis',
+        'Ringkasan total pengeluaran dan sisa anggaran bulanan',
+      ],
+    },
+    {
+      id: 'todo-checklist',
+      icon: 'calendar',
+      title: 'Checklist Tugas & Kebiasaan Harian',
+      techStack: 'Daftar Tugas · Centang Selesai',
+      howToBuild:
+        'Aplikasi daftar tugas sederhana untuk mencatat hal yang harus dikerjakan hari ini, menandai selesai, dan melihat progres harian.',
+      coreFeatures: [
+        'Tambah tugas baru dan tandai selesai dengan satu klik',
+        'Pisahkan daftar tugas hari ini dan mendatang',
+        'Lihat ringkasan tugas yang sudah terselesaikan',
+      ],
+    },
+    {
+      id: 'fridge-recipes',
+      icon: 'camera',
+      title: 'Pencari Resep dari Bahan di Kulkas',
+      techStack: 'Pilih Bahan · Ide Resep Praktis',
+      howToBuild:
+        'Pilih atau ketik bahan makanan yang tersedia di dapur, lalu aplikasi menampilkan ide menu masakan sederhana lengkap dengan langkah memasaknya.',
+      coreFeatures: [
+        'Pilih atau ketik daftar bahan yang ada di kulkas',
+        'Tampilkan pilihan menu masakan sederhana di bawah 30 menit',
+        'Checklist bahan tambahan jika masih ada yang kurang',
+      ],
+    },
+    {
+      id: 'study-flashcards',
+      icon: 'book-open',
+      title: 'Peringkas Catatan & Kartu Kuis Belajar',
+      techStack: 'Ringkas Teks · Kartu Tanya Jawab',
+      howToBuild:
+        'Tempel catatan kuliah atau artikel panjang, aplikasi merangkumnya jadi poin penting dan membuat kartu kuis tanya-jawab (flashcard) untuk latihan.',
+      coreFeatures: [
+        'Tempel teks catatan panjang untuk diringkas jadi poin inti',
+        'Buat kartu kuis tanya-jawab untuk latihan hafalan',
+        'Simpan daftar rangkuman berdasarkan mata pelajaran',
+      ],
+    },
+    {
+      id: 'routine-bill-reminder',
+      icon: 'bell',
+      title: 'Pengingat Jadwal Vitamin & Tagihan Bulanan',
+      techStack: 'Daftar Jadwal · Tandai Selesai',
+      howToBuild:
+        'Aplikasi pengingat pribadi untuk mencatat jadwal minum vitamin harian dan tanggal jatuh tempo tagihan bulanan, lengkap dengan status sudah dibayar.',
+      coreFeatures: [
+        'Daftar jadwal minum vitamin atau obat harian',
+        'Daftar tanggal jatuh tempo tagihan rutin tiap bulan',
+        'Tombol tandai selesai atau sudah dibayar',
       ],
     },
   ],
@@ -307,75 +299,88 @@ const DEFAULT_CATEGORIES: Omit<CategoryStore, 'tasks'> = {
       badgeLabel: 'Layar Vertikal',
       layoutHint: 'Nyaman Satu Tangan · Tombol Besar',
       description:
-        'Didesain khusus untuk layar HP dengan tombol besar dan menu sederhana yang gampang dipencet pakai jempol.',
+        'Didesain khusus untuk dipakai pribadi di HP dengan tombol besar dan menu sederhana yang nyaman pakai satu tangan.',
     },
     {
       id: 'desktop',
       icon: 'laptop',
       title: 'Layar Laptop',
       badgeLabel: 'Layar Lebar',
-      layoutHint: 'Tampilan Lega · Banyak Info Sekaligus',
+      layoutHint: 'Tampilan Lega · Fokus Belajar & Kerja',
       description:
-        'Memanfaatkan layar laptop yang lebar agar daftar, peta, dan ringkasan bisa dilihat berdampingan dengan nyaman.',
+        'Memanfaatkan layar laptop yang lebar agar catatan, ringkasan, dan daftar rencana pribadi tampil lega berdampingan.',
     },
     {
       id: 'tablet-kiosk',
       icon: 'tablet',
-      title: 'Layar Tablet / Meja',
-      badgeLabel: 'Layar Sentuh Bersama',
-      layoutHint: 'Huruf Besar · Jelas Dibaca Bareng',
+      title: 'Layar Tablet Pribadi',
+      badgeLabel: 'Meja Belajar / Rumah',
+      layoutHint: 'Huruf Jelas · Nyaman Dibaca Santai',
       description:
-        'Tampilan bersih dengan tulisan dan tombol besar, cocok ditaruh di meja kasir, ruang tunggu, atau posko warga.',
+        'Tampilan bersih dan lega untuk ditaruh di meja belajar, dapur, atau samping tempat tidur untuk penggunaan pribadi.',
     },
     {
       id: 'cross-platform',
       icon: 'monitor-smartphone',
       title: 'HP & Laptop',
       badgeLabel: 'Rapi di Semua Layar',
-      layoutHint: 'Satu Link · Otomatis Menyesuaikan',
+      layoutHint: 'Sinkron · Praktis Di Mana Saja',
       description:
-        'Enak dibuka dari HP saat sedang di luar, dan tetap rapi serta lega saat dibuka di laptop.',
+        'Enak dipakai cepat dari HP saat di luar rumah, dan tetap lega saat dicek ulang dari laptop pribadi.',
     },
   ],
 };
 
 const DEFAULT_TASKS: StoredTaskBundle[] = [
   {
-    id: 'task-food-kitchen',
+    id: 'task-personal-expense',
     problem: DEFAULT_CATEGORIES.problems[0],
     solution: DEFAULT_CATEGORIES.solutions[0],
-    targetUser: DEFAULT_CATEGORIES.targetUsers[3],
+    targetUser: DEFAULT_CATEGORIES.targetUsers[0],
     deviceTarget: DEFAULT_CATEGORIES.deviceTargets[0],
   },
   {
-    id: 'task-umkm-cashflow',
-    problem: DEFAULT_CATEGORIES.problems[3],
-    solution: DEFAULT_CATEGORIES.solutions[4],
-    targetUser: DEFAULT_CATEGORIES.targetUsers[0],
+    id: 'task-personal-todo',
+    problem: DEFAULT_CATEGORIES.problems[1],
+    solution: DEFAULT_CATEGORIES.solutions[1],
+    targetUser: DEFAULT_CATEGORIES.targetUsers[1],
     deviceTarget: DEFAULT_CATEGORIES.deviceTargets[3],
   },
   {
-    id: 'task-commuter-weather',
-    problem: DEFAULT_CATEGORIES.problems[4],
-    solution: DEFAULT_CATEGORIES.solutions[1],
+    id: 'task-personal-recipe',
+    problem: DEFAULT_CATEGORIES.problems[2],
+    solution: DEFAULT_CATEGORIES.solutions[2],
     targetUser: DEFAULT_CATEGORIES.targetUsers[2],
     deviceTarget: DEFAULT_CATEGORIES.deviceTargets[0],
   },
   {
-    id: 'task-student-notes',
-    problem: DEFAULT_CATEGORIES.problems[5],
+    id: 'task-personal-study-v2',
+    problem: DEFAULT_CATEGORIES.problems[3],
     solution: DEFAULT_CATEGORIES.solutions[3],
-    targetUser: DEFAULT_CATEGORIES.targetUsers[1],
+    targetUser: DEFAULT_CATEGORIES.targetUsers[3],
     deviceTarget: DEFAULT_CATEGORIES.deviceTargets[1],
   },
   {
-    id: 'task-community-queue',
-    problem: DEFAULT_CATEGORIES.problems[1],
-    solution: DEFAULT_CATEGORIES.solutions[2],
+    id: 'task-personal-reminder',
+    problem: DEFAULT_CATEGORIES.problems[4],
+    solution: DEFAULT_CATEGORIES.solutions[4],
     targetUser: DEFAULT_CATEGORIES.targetUsers[4],
     deviceTarget: DEFAULT_CATEGORIES.deviceTargets[2],
   },
 ];
+
+const LEGACY_SEED_TASK_IDS = new Set([
+  'task-food-kitchen',
+  'task-umkm-cashflow',
+  'task-commuter-weather',
+  'task-student-notes',
+  'task-community-queue',
+  'task-personal-fridge',
+  'task-personal-budget',
+  'task-personal-commute',
+  'task-personal-study',
+  'task-personal-health',
+]);
 
 function deriveStoreFromTasks(tasks: StoredTaskBundle[]): CategoryStore {
   const safeTasks = tasks.length > 0 ? tasks : structuredClone(DEFAULT_TASKS);
@@ -405,6 +410,13 @@ function loadCategories(): CategoryStore {
     const raw = fs.readFileSync(CATEGORIES_FILE, 'utf8');
     const parsed = JSON.parse(raw) as Partial<CategoryStore>;
     if (Array.isArray(parsed.tasks) && parsed.tasks.length > 0) {
+      const customTasks = parsed.tasks.filter((t) => !LEGACY_SEED_TASK_IDS.has(t.id));
+      const hasLegacySeeds = customTasks.length !== parsed.tasks.length;
+      if (hasLegacySeeds) {
+        const upgraded = deriveStoreFromTasks([...customTasks, ...structuredClone(DEFAULT_TASKS)]);
+        saveCategories(upgraded);
+        return upgraded;
+      }
       return deriveStoreFromTasks(parsed.tasks);
     }
     const migratedStore = deriveStoreFromTasks(structuredClone(DEFAULT_TASKS));
@@ -594,16 +606,16 @@ function isValidCategoryKey(value: string): value is CategoryKey {
 }
 
 const EVERYDAY_THEMES = [
-  'belanja harian, isi kulkas, dan rencana menu masak keluarga',
-  'pengeluaran rumah tangga, patungan kos/arisan, dan pencatatan struk belanja',
-  'jadwal minum obat keluarga, antrean puskesmas, dan catatan kesehatan lansia atau anak',
-  'pendamping belajar anak sekolah, jadwal les, dan merapikan catatan pelajaran',
-  'perawatan motor atau mobil harian, pajak kendaraan, dan rute aman saat hujan atau macet',
-  'pilah sampah rumah tangga, jadwal iuran atau ronda warga, dan gotong royong komplek',
-  'kelola pesanan katering rumahan, warung kelontong, atau laundry kiloan harian',
-  'mencari tukang servis rumah terpercaya, garansi barang elektronik, dan checklist pindahan atau acara keluarga',
-  'pengingat tagihan listrik/air, jadwal servis AC, dan pembagian tugas bersih-bersih rumah',
-  'rencana bekal kerja atau sekolah, daftar titipan belanja pasar, dan pengingat tanggal kedaluwarsa di dapur',
+  'pencatat pengeluaran harian pribadi dan batas anggaran bulanan',
+  'daftar tugas harian (to-do list) dan checklist kebiasaan sehari-hari',
+  'pencari ide resep masakan sederhana dari bahan yang ada di kulkas',
+  'peringkas catatan pelajaran atau artikel panjang menjadi poin dan kartu kuis',
+  'pengingat jadwal minum vitamin rutin dan tanggal bayar tagihan bulanan',
+  'daftar belanja mingguan pribadi agar tidak ada barang yang lupa dibeli',
+  'pelacak target tabungan pribadi dan progres pengumpulan dana barang impian',
+  'pencatat daftar buku yang sedang dibaca atau film yang ingin ditonton',
+  'pengatur jadwal perawatan dan servis berkala kendaraan pribadi',
+  'checklist barang bawaan sebelum bepergian atau liburan singkat',
 ] as const;
 
 function sanitizeStringArray(input: unknown, maxItems = 25, maxLen = 100): string[] {
@@ -769,34 +781,34 @@ async function generateEverydayMission(
       ? `JANGAN mengulang atau membuat ide yang mirip dengan daftar ide sebelumnya ini:\n- ${previousIdeas.join('\n- ')}`
       : 'Buat ide yang segar dan belum pernah dipakai sebelumnya.';
 
-  const systemInstruction = `Kamu adalah perancang tantangan aplikasi AI untuk acara GDG Bogor bertema Vibe Coding bagi peserta NON-CODING (tidak punya latar belakang pemrograman).
+  const systemInstruction = `Kamu adalah perancang ide tantangan aplikasi sederhana untuk acara GDG Bogor bertema Vibe Coding bagi peserta NON-CODING (pemula tanpa latar belakang pemrograman).
 
-Tugasmu: Buat SATU ide aplikasi baru yang benar-benar dibutuhkan dalam KEHIDUPAN SEHARI-HARI masyarakat Indonesia.
+Tugasmu: Buat SATU ide aplikasi pribadi yang SEDERHANA, KONKRET, dan pola penggunaannya (User Experience) SUDAH UMUM ADA dan terbukti dipakai orang sehari-hari.
 
 Referensi paket tugas berkesinambungan (Problem -> App -> User -> Device) yang aktif di mesin ide:
 ${cohesiveTaskExamples}
 - Pilihan deviceId yang tersedia: ${uniqueDeviceHint}
 
 Aturan wajib:
-1. Topik HARUS seputar kebutuhan sehari-hari yang nyata, membumi, dan langsung terbayang manfaatnya (rumah tangga, belanja pasar/warung, masak/kulkas, kesehatan keluarga, antar-jemput/perjalanan, belajar anak, iuran warga/kos, atau usaha kecil harian).
-2. Bahasa Indonesia santai, ramah, dan MUDAH DIMENGERTI orang awam non-coding.
-3. DILARANG KERAS memakai istilah teknis coding/engineering (seperti API, database, backend, frontend, cloud, SQL, JSON, OCR, NLP, RAG, LLM, deploy, server, framework, microservice, webhook, auth).
-4. Ceritakan cara kerja AI dengan bahasa sehari-hari (contoh: "cukup foto struk belanja...", "tinggal ngomong lewat suara...", "tempel catatan chat yang berantakan...").
-5. Pastikan Problem, Target User, dan Aplikasi saling terhubung erat membentuk satu cerita yang utuh dan masuk akal.
-6. Jaga teks ringkas dan padat agar nyaman dibaca di layar proyektor dan muat di QR code:
+1. SEDERHANA & SATU FUNGSI UTAMA: Pilih satu aplikasi pribadi yang jelas dan sederhana (misalnya: pencatat pengeluaran, to-do checklist, daftar belanja, pencari resep dari bahan kulkas, peringkas catatan & kartu kuis, pelacak tabungan, pengingat tagihan/vitamin, jadwal servis motor, atau daftar buku/film).
+2. USER EXPERIENCE HARUS NYATA & LAZIM: Gunakan interaksi standar yang memang ada di aplikasi sungguhan — seperti mengetik input form singkat, mencentang checklist/daftar, memilih kategori atau filter, menempel teks untuk diringkas, mengunggah foto struk/bahan, atau melihat kalender/pengingat tanggal.
+3. DILARANG KERAS MENGARANG UX ANEH: Jangan pernah membuat cara pakai yang tidak lazim, gimmicky, atau tidak pernah ada di dunia nyata (seperti merekam suara saat minum vitamin atau olahraga, aplikasi yang memuji-muji pengguna secara verbal setiap aktivitas, atau cara interaksi ajaib yang tidak masuk akal).
+4. FOKUS PEMAKAIAN PRIBADI: Untuk dipakai sendiri sehari-hari. HINDARI aplikasi kasir/toko/UMKM, portal layanan publik, atau sistem perusahaan.
+5. BAHASA AWAM & BEBAS ISTILAH TEKNIS: Gunakan bahasa Indonesia santai dan jelas. DILARANG memakai istilah coding/engineering (seperti API, database, backend, frontend, cloud, SQL, JSON, OCR, NLP, RAG, LLM, deploy, server, framework, microservice, webhook, auth).
+6. Pastikan Problem, Target User, dan Aplikasi nyambung logis dan ringkas agar pas di layar proyektor:
    - problemTitle: maks 6 kata
    - problemDescription: 1-2 kalimat singkat (maks 130 karakter)
-   - userTitle: maks 5 kata
+   - userTitle: maks 5 kata (contoh: "Pekerja Muda & Anak Kos", "Pelajar & Mahasiswa")
    - userDescription: 1-2 kalimat yang langsung menyebut masalah tadi (maks 145 karakter)
-   - solutionTitle: maks 6 kata
-   - solutionHowTo: 1-2 kalimat jelas untuk vibe coder tentang aplikasi apa yang dibuat (maks 175 karakter)
-   - solutionFeatures: tepat 3 poin fitur praktis, masing-masing maks 9 kata (maks 65 karakter per poin).`;
+   - solutionTitle: maks 6 kata (nama aplikasi yang sederhana dan familiar)
+   - solutionHowTo: 1-2 kalimat lugas tentang cara pakai aplikasi yang wajar dan sederhana (maks 175 karakter)
+   - solutionFeatures: tepat 3 poin fitur nyata yang memang lazim ada di aplikasi tersebut, masing-masing maks 9 kata (maks 65 karakter per poin).`;
 
-  const userPrompt = `Fokus tema kali ini (variasi #${randomNonce}): ${chosenTheme}.
+  const userPrompt = `Fokus tema aplikasi pribadi kali ini (variasi #${randomNonce}): ${chosenTheme}.
 ${participantName ? `Peserta yang sedang mendapat tantangan: ${participantName}.` : ''}
 ${avoidText}
 
-Hasilkan 1 tantangan aplikasi kebutuhan sehari-hari yang unik, kreatif, praktis, dan 100% bebas istilah coding.`;
+Hasilkan 1 ide aplikasi pribadi yang sangat sederhana, cara pakainya lazim seperti aplikasi yang sudah ada di dunia nyata, dan bebas istilah coding.`;
 
   const schema = {
     type: Type.OBJECT,
